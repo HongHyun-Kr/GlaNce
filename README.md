@@ -37,7 +37,7 @@ Xcode 없이 Command Line Tools만 있으면 된다.
 
 ```bash
 xcode-select --install          # 처음 한 번만
-git clone https://github.com/Hong-Hyun-00/GlaNce.git
+git clone https://github.com/HongHyun-kr/GlaNce.git
 cd GlaNce
 ./build.sh                      # ~/Applications/GlaNce.app 생성
 open ~/Applications/GlaNce.app
