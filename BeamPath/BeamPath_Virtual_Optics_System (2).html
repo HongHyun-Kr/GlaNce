@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeamPath — Virtual Optics System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#f6f7fa;
+    --panel-border:#dde1ea;
+    --ink:#181b26;
+    --muted:#6b7280;
+    --outline:#14161f;
+    --amber:#f5a623;
+    --mirror:#b7bfd0;
+    --lens:#3b82f6;
+    --bet:#2dd4bf;
+    --stage:#64748b;
+    --good:#16a34a;
+    --warn:#d97706;
+    --danger:#dc2626;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Pretendard","JetBrains Mono",-apple-system,sans-serif;
+    min-height:100vh;
+  }
+  .mono{ font-family:"JetBrains Mono", monospace; }
+
+  header{ padding:26px 28px 8px; border-bottom:1px solid var(--panel-border); }
+  header .title{ display:flex; align-items:baseline; gap:10px; }
+  header h1{ margin:0; font-size:24px; font-weight:800; letter-spacing:-0.01em; }
+  header .subtitle{ font-size:13px; color:var(--muted); font-weight:600; letter-spacing:0.02em; text-transform:uppercase; }
+  header p.desc{ margin:8px 0 14px; color:var(--muted); font-size:12.5px; }
+
+  .layout{
+    display:grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap:18px;
+    padding:16px 28px 40px;
+    align-items:start;
+  }
+  @media (max-width: 1000px){ .layout{ grid-template-columns: 1fr; } }
+
+  .stage-panel{
+    background:var(--panel);
+    border:2px solid var(--outline);
+    border-radius:16px;
+    padding:10px;
+    height:620px;
+    position:sticky; top:16px;
+    overflow:hidden;
+  }
+  .stage-panel svg{ width:100%; height:100%; display:block; }
+
+  .card{
+    background:#fff;
+    border:2px solid var(--outline);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-bottom:14px;
+  }
+  .card h2{
+    font-size:12.5px; margin:0 0 10px; color:var(--ink); font-weight:800;
+    letter-spacing:0.03em; display:flex; align-items:center; gap:7px;
+  }
+  .dot{ width:8px;height:8px;border-radius:50%; display:inline-block; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
+  .field{ display:flex; flex-direction:column; gap:3px; }
+  .field label{ font-size:11px; color:var(--muted); font-weight:600; }
+  .field input[type=number], .field select{
+    background:var(--panel); border:1.5px solid var(--panel-border); border-radius:7px;
+    color:var(--ink); padding:6px 7px; font-family:"JetBrains Mono",monospace; font-size:12.5px;
+  }
+  .field select{ font-family:"Pretendard",sans-serif; font-size:12px; }
+  .field .hint{ font-size:10px; color:#9aa1b4; }
+
+  .full{ grid-column: 1 / -1; }
+
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 0; border-bottom:1px solid #eef0f4; font-size:12.5px;
+  }
+  .toggle-row:last-child{ border-bottom:none; }
+  .switch{
+    position:relative; width:36px; height:21px; background:#d8dbe6; border-radius:20px; cursor:pointer;
+    transition:background .15s; flex-shrink:0;
+  }
+  .switch.on{ background:var(--amber); }
+  .switch::after{ content:""; position:absolute; top:2px; left:2px; width:17px; height:17px; background:#fff; border-radius:50%; transition:left .15s; box-shadow:0 1px 2px rgba(0,0,0,.3); }
+  .switch.on::after{ left:17px; }
+
+  .slider-row{ margin-top:8px; }
+  .slider-row .lbl{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-bottom:4px; }
+  input[type=range]{ width:100%; accent-color:var(--amber); }
+
+  .note{ font-size:10.8px; color:#9aa1b4; line-height:1.5; margin-top:8px; }
+
+  .result-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .result-box{ background:var(--panel); border:1.5px solid var(--panel-border); border-radius:10px; padding:10px; }
+  .result-box .k{ font-size:10.5px; color:var(--muted); margin-bottom:3px; font-weight:600; }
+  .result-box .v{ font-family:"JetBrains Mono",monospace; font-size:17px; font-weight:800; color:#111; }
+  .result-box .v small{ font-size:11px; color:var(--muted); font-weight:500; }
+
+  .target-box{ margin-top:12px; padding-top:12px; border-top:1px dashed var(--panel-border); }
+  .target-status{ margin-top:8px; font-size:12.5px; padding:9px 11px; border-radius:8px; background:var(--panel); line-height:1.5; }
+  .target-status.ok{ color:var(--good); }
+  .target-status.bad{ color:var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <h1>BeamPath</h1>
+    <span class="subtitle">Virtual Optics System</span>
+  </div>
+  <p class="desc">Laser → Attenuator/Shutter → M1 → M2 → BET → M3 → M4 → M5 → Focus Lens → Stage &nbsp;|&nbsp; Gaussian beam propagation, 논문 실측 캘리브레이션 (f = 255mm, w₀′ = 96μm @355nm)</p>
+</header>
+
+<div class="layout">
+
+  <div class="stage-panel">
+    <svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="controls">
+
+    <div class="card">
+      <h2><span class="dot" id="dot-laser" style="background:#8b5cf6"></span>레이저 소스</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>파장</label>
+          <select id="wavelength">
+            <option value="1064">1064 nm · IR (기본파)</option>
+            <option value="532">532 nm · Green (2ω)</option>
+            <option value="355" selected>355 nm · UV (3ω)</option>
+            <option value="266">266 nm · Deep UV (4ω)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>평균 출력 P_avg (W)</label>
+          <input type="number" id="pavg" value="3.5" step="0.1" min="0.1" max="20">
+        </div>
+        <div class="field">
+          <label>반복률 (kHz)</label>
+          <input type="number" id="reprate" value="50" step="1" min="1" max="500">
+        </div>
+        <div class="field">
+          <label>펄스폭 (ns, 참고용)</label>
+          <input type="number" id="pulsewidth" value="17" step="1" min="1" max="200">
+        </div>
+        <div class="field">
+          <label>M² (beam quality)</label>
+          <input type="number" id="m2" value="1.2" step="0.05" min="1" max="3">
+        </div>
+        <div class="field">
+          <label class="hint">w₀′ (파장 비례 스케일)</label>
+          <div class="mono" id="w0-readout" style="font-size:12.5px; padding-top:5px; color:var(--muted)">96.0 μm</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:var(--amber)"></span>컴포넌트 구성</h2>
+      <div class="grid2">
+        <div class="toggle-row full" style="grid-column:1/-1"><span>Attenuator / Shutter</span><div class="switch on" data-toggle="attenuator"></div></div>
+        <div class="toggle-row full" style="grid-column:1/-1"><span>Beam Expander (BET)</span><div class="switch" data-toggle="bet"></div></div>
+        <div class="toggle-row"><span>M1</span><div class="switch on" data-toggle="m1"></div></div>
+        <div class="toggle-row"><span>M2</span><div class="switch on" data-toggle="m2"></div></div>
+        <div class="toggle-row"><span>M3</span><div class="switch on" data-toggle="m3"></div></div>
+        <div class="toggle-row"><span>M4</span><div class="switch on" data-toggle="m4"></div></div>
+        <div class="toggle-row"><span>M5</span><div class="switch on" data-toggle="m5"></div></div>
+      </div>
+      <div class="slider-row">
+        <div class="lbl"><span>Attenuator 투과율 (실제 공정 중 상시 조절 대상)</span><span class="mono" id="att-t-val">80%</span></div>
+        <input type="range" id="att-t" min="0" max="100" value="80">
+      </div>
+      <div class="note">미러 반사율 R=99%, BET 투과율 T=98%는 UV용 코팅 스펙상 거의 고정값이라 슬라이더 대신 고정 상수로 처리함 (Attenuator만 실사용에서 실제로 계속 바뀌는 값).</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:#94a3b8"></span>컴포넌트 간 거리 (mm)</h2>
+      <div class="grid2 mono" id="distance-grid" style="font-size:11.5px;"></div>
+      <div class="note">일러스트 배치 간격에만 반영됨 (Focus lens → Stage 구간은 실제 f=255mm 물리량으로 별도 관리).</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:var(--lens)"></span>Stage &amp; 초점</h2>
+      <div class="slider-row">
+        <div class="lbl"><span>Stage 높이 (focal plane 기준 offset, z)</span><span class="mono" id="z-val">0.0 mm</span></div>
+        <input type="range" id="z-slider" min="-30" max="30" value="0" step="0.1" style="accent-color:var(--lens)">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:#111"></span>계산 결과</h2>
+      <div class="result-grid">
+        <div class="result-box"><div class="k">Stage 도달 파워</div><div class="v" id="out-power">–</div></div>
+        <div class="result-box"><div class="k">펄스 에너지</div><div class="v" id="out-energy">–</div></div>
+        <div class="result-box"><div class="k">Spot 직경 (1/e²)</div><div class="v" id="out-spot">–</div></div>
+        <div class="result-box"><div class="k">Peak Fluence</div><div class="v" id="out-fluence">–</div></div>
+      </div>
+      <div class="target-box">
+        <div class="field">
+          <label>목표 fluence (mJ/cm²)</label>
+          <input type="number" id="target-f" placeholder="예: 110" step="1">
+        </div>
+        <div class="target-status" id="target-status">목표 fluence를 입력하면 필요한 stage 높이를 계산함.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===================== 상수 & 캘리브레이션 ===================== */
+const W0_UM_CAL = 96;     // 355nm 기준 논문 실측 캘리브레이션 [μm]
+const CAL_LAMBDA = 355;
+const BET_FIXED_T = 0.98;
+const MIRROR_FIXED_R = 0.99;
+
+const WAVELENGTHS = {
+  1064: {label:'1064 nm · IR',  color:'#e63946'},
+  532:  {label:'532 nm · Green', color:'#16a34a'},
+  355:  {label:'355 nm · UV',    color:'#8b5cf6'},
+  266:  {label:'266 nm · Deep UV', color:'#6d28d9'},
+};
+
+/* ===================== 상태 ===================== */
+const state = {
+  wavelength: 355, pavg: 3.5, reprate: 50, pulsewidth: 17, m2: 1.2,
+  attenuatorOn: true, attT: 80,
+  betOn: false,
+  mirrors: {m1:true, m2:true, m3:true, m4:true, m5:true},
+  z: 0,
+  distances: {seg1:120, seg2:240, seg3:200, seg4:140, seg5:160, seg6:200, seg7:200, seg8:150}
+};
+
+const SEGMENT_DEFS = [
+  {key:'seg1', from:'laser', to:'att',  dir:[1,0],  label:'Laser–Att'},
+  {key:'seg2', from:'att',   to:'m1',   dir:[1,0],  label:'Att–M1'},
+  {key:'seg3', from:'m1',    to:'m2',   dir:[0,1],  label:'M1–M2'},
+  {key:'seg4', from:'m2',    to:'bet',  dir:[-1,0], label:'M2–BET'},
+  {key:'seg5', from:'bet',   to:'m3',   dir:[-1,0], label:'BET–M3'},
+  {key:'seg6', from:'m3',    to:'m4',   dir:[0,1],  label:'M3–M4'},
+  {key:'seg7', from:'m4',    to:'m5',   dir:[0,-1], label:'M4–M5', dashed:true},
+  {key:'seg8', from:'m5',    to:'lens', dir:[-1,0], label:'M5–Lens'},
+];
+
+const NODE_SPEC = {
+  laser:{type:'box', w:118, h:66, lines:['LASER']},
+  att:  {type:'box', w:98,  h:58, lines:['ATTEN.','& SHUTTER']},
+  bet:  {type:'box', w:90,  h:52, lines:['BEAM','EXPANDER']},
+  m1:{type:'circle', r:25, lines:['M1']},
+  m2:{type:'circle', r:25, lines:['M2']},
+  m3:{type:'circle', r:25, lines:['M3']},
+  m4:{type:'circle', r:25, lines:['M4']},
+  m5:{type:'circle', r:25, lines:['M5']},
+  lens:{type:'circle', r:33, lines:['FOCUS','LENS']},
+};
+
+/* ===================== 물리 계산 ===================== */
+function lambda_m(){ return state.wavelength*1e-9; }
+function w0_m(){ return (W0_UM_CAL*(state.wavelength/CAL_LAMBDA))*1e-6; }
+function zR_m(){ const w0=w0_m(); return Math.PI*w0*w0/(lambda_m()*state.m2); }
+function w_at_z_m(z_mm){
+  const w0=w0_m(); const zr=zR_m(); const z=z_mm*1e-3;
+  return w0*Math.sqrt(1+(z/zr)*(z/zr));
+}
+function transmission(){
+  let T=1;
+  if(state.attenuatorOn) T*=state.attT/100;
+  if(state.betOn) T*=BET_FIXED_T;
+  Object.keys(state.mirrors).forEach(k=>{ if(state.mirrors[k]) T*=MIRROR_FIXED_R; });
+  return T;
+}
+function Pstage_W(){ return state.pavg*transmission(); }
+function Epulse_J(){ return Pstage_W()/(state.reprate*1e3); }
+function fluence_mJcm2(z_mm){
+  const w_cm = w_at_z_m(z_mm)*100;
+  const area = Math.PI*w_cm*w_cm;
+  return (2*Epulse_J()/area)*1000;
+}
+function requiredZ_mm(targetF_mJcm2){
+  const F_Jcm2 = targetF_mJcm2/1000;
+  const E = Epulse_J();
+  const w0 = w0_m();
+  const w_needed_cm = Math.sqrt(2*E/(Math.PI*F_Jcm2));
+  const w_needed_m = w_needed_cm/100;
+  if (w_needed_m < w0*0.999) return null;
+  const ratio = w_needed_m/w0;
+  return zR_m()*Math.sqrt(Math.max(ratio*ratio-1,0))*1000;
+}
+
+/* ===================== 색상 helper ===================== */
+function shade(hex, percent){
+  let f=parseInt(hex.slice(1),16), t=percent<0?0:255, p=Math.abs(percent)/100;
+  let R=f>>16, G=(f>>8)&0x00FF, B=f&0x0000FF;
+  return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+}
+function currentColor(){ return WAVELENGTHS[state.wavelength].color; }
+
+/* ===================== 레이아웃 계산 ===================== */
+function mmToPx(mm){ return Math.max(45, Math.min(260, mm*0.5)); }
+function computeLayout(){
+  const pos = { laser:{x:120,y:120} };
+  SEGMENT_DEFS.forEach(seg=>{
+    const px = mmToPx(state.distances[seg.key]);
+    const p = pos[seg.from];
+    pos[seg.to] = { x:p.x+seg.dir[0]*px, y:p.y+seg.dir[1]*px };
+  });
+  return pos;
+}
+function nodeActive(id){
+  if(id==='laser'||id==='lens') return true;
+  if(id==='att') return state.attenuatorOn;
+  if(id==='bet') return state.betOn;
+  return state.mirrors[id];
+}
+
+/* ===================== SVG 구성 ===================== */
+const svgNS = "http://www.w3.org/2000/svg";
+const scene = document.getElementById('scene');
+let gradId = 0;
+
+function el(tag, attrs){
+  const e = document.createElementNS(svgNS, tag);
+  Object.keys(attrs).forEach(k=> e.setAttribute(k, attrs[k]));
+  return e;
+}
+
+function addTag(parent, x, y, text, accent){
+  const g = el('g',{});
+  const padX=6, padY=4, fs=10.5;
+  const textEl = el('text',{x:0,y:0,'font-family':'JetBrains Mono, monospace','font-size':fs,'font-weight':'700', fill:'#20232e'});
+  textEl.textContent = text;
+  g.appendChild(textEl);
+  scene.appendChild(g); // temp to measure
+  let bw = 60;
+  try{ bw = textEl.getBBox().width; }catch(e){ bw = text.length*6.2; }
+  scene.removeChild(g);
+
+  const w = bw+padX*2, h = 16+padY;
+  const rect = el('rect',{x:x-w/2, y:y-h/2, width:w, height:h, rx:6, fill:'#ffffff', stroke:accent||'#b7bfd0','stroke-width':1.4});
+  parent.appendChild(rect);
+  const t2 = el('text',{x:x, y:y+4, 'text-anchor':'middle','font-family':'JetBrains Mono, monospace','font-size':fs,'font-weight':'700', fill:'#20232e'});
+  t2.textContent = text;
+  parent.appendChild(t2);
+}
+
+function drawBox3D(parent, cx, cy, w, h, mainColor, active, lines, tag){
+  const depth = 13;
+  const x = cx-w/2, y = cy-h/2;
+  const front = active? mainColor : '#e6e8ee';
+  const top = shade(front, active? 28:8);
+  const side = shade(front, active? -22:-8);
+  const strokeC = 'var(--outline)';
+
+  const sidePoly = el('polygon',{points:`${x+w},${y} ${x+w+depth},${y-depth} ${x+w+depth},${y+h-depth} ${x+w},${y+h}`, fill:side, stroke:strokeC,'stroke-width':3,'stroke-linejoin':'round'});
+  const topPoly = el('polygon',{points:`${x},${y} ${x+depth},${y-depth} ${x+w+depth},${y-depth} ${x+w},${y}`, fill:top, stroke:strokeC,'stroke-width':3,'stroke-linejoin':'round'});
+  const frontRect = el('rect',{x:x,y:y,width:w,height:h,rx:10,fill:front,stroke:strokeC,'stroke-width':3.5});
+  parent.appendChild(sidePoly);
+  parent.appendChild(topPoly);
+  parent.appendChild(frontRect);
+
+  const totalH = lines.length*17;
+  lines.forEach((ln,i)=>{
+    const t = el('text',{x:cx, y: cy - totalH/2 + 15 + i*17, 'text-anchor':'middle','font-family':'Pretendard,sans-serif','font-weight':'800','font-size':14.5, fill: active? '#12141c':'#8b93a5'});
+    t.textContent = ln;
+    parent.appendChild(t);
+  });
+
+  if(tag) addTag(parent, cx, y+h+depth+20, tag, mainColor);
+}
+
+function drawCircle3D(parent, cx, cy, r, mainColor, active, lines, tag, dashedRing){
+  gradId++;
+  const gid = 'grad'+gradId;
+  const defs = scene.querySelector('defs');
+  const grad = el('radialGradient',{id:gid, cx:'35%', cy:'30%', r:'75%'});
+  grad.appendChild(el('stop',{offset:'0%','stop-color': shade(mainColor, active?45:10)}));
+  grad.appendChild(el('stop',{offset:'60%','stop-color': active? mainColor : '#dde1ea'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color': shade(mainColor, active? -25:-5)}));
+  defs.appendChild(grad);
+
+  const shadow = el('ellipse',{cx:cx, cy:cy+r*0.78, rx:r*0.85, ry:r*0.28, fill:'#000', opacity:0.13});
+  parent.appendChild(shadow);
+
+  const circle = el('circle',{cx:cx, cy:cy, r:r, fill:`url(#${gid})`, stroke:'var(--outline)','stroke-width':3.5});
+  if(dashedRing){ circle.setAttribute('stroke-dasharray','5 4'); }
+  parent.appendChild(circle);
+
+  const totalH = lines.length*13;
+  lines.forEach((ln,i)=>{
+    const t = el('text',{x:cx, y: cy - totalH/2 + 10 + i*13, 'text-anchor':'middle','font-family':'Pretendard,sans-serif','font-weight':'800','font-size':12.5, fill: active? '#12141c':'#9aa1b4'});
+    t.textContent = ln;
+    parent.appendChild(t);
+  });
+
+  if(tag) addTag(parent, cx, cy+r+26, tag, mainColor);
+}
+
+function buildScene(){
+  scene.innerHTML = '';
+  const defs = el('defs',{});
+  defs.innerHTML = `
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="stageGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#94a0b8"/><stop offset="100%" stop-color="#5b6377"/>
+    </linearGradient>`;
+  scene.appendChild(defs);
+
+  const pos = computeLayout();
+  const col = currentColor();
+
+  // ---- 초점 관련 시각 위치 ----
+  const lensR = NODE_SPEC.lens.r;
+  const lensBottom = { x: pos.lens.x, y: pos.lens.y + lensR };
+  const focalY = lensBottom.y + 130;
+  const zPxPerMm = 2.3;
+  const stageY = focalY + state.z*zPxPerMm;
+  const stageX = lensBottom.x;
+  const stageW = 240, stageH = 24;
+
+  const w_um = w_at_z_m(state.z)*1e6;
+  const spotHalfPx = Math.max(3, Math.min(42, 3 + (w_um/W0_UM_CAL - 1)*9));
+
+  // ---- viewBox 자동 계산 ----
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  Object.keys(pos).forEach(k=>{
+    const sp = NODE_SPEC[k];
+    const hw = sp.type==='box'? sp.w/2+20 : sp.r+20;
+    const hh = sp.type==='box'? sp.h/2+45 : sp.r+45;
+    minX=Math.min(minX,pos[k].x-hw); maxX=Math.max(maxX,pos[k].x+hw);
+    minY=Math.min(minY,pos[k].y-hh); maxY=Math.max(maxY,pos[k].y+hh);
+  });
+  minX=Math.min(minX, stageX-stageW/2-20); maxX=Math.max(maxX, stageX+stageW/2+20);
+  maxY=Math.max(maxY, stageY+stageH+70);
+  minY=Math.min(minY, minY-20);
+  const pad=30;
+  scene.setAttribute('viewBox', `${minX-pad} ${minY-pad} ${maxX-minX+pad*2} ${maxY-minY+pad*2}`);
+  scene.setAttribute('preserveAspectRatio','xMidYMid meet');
+
+  // ---- 빔 경로 (활성 노드 중심 연결) ----
+  const order = ['laser','att','m1','m2','bet','m3','m4','m5','lens'];
+  const activePts = order.filter(nodeActive).map(id=>pos[id]);
+  const dAttr = 'M ' + activePts.map(p=>p.x+','+p.y).join(' L ');
+  const beamPath = el('path',{d:dAttr, fill:'none', stroke:col, 'stroke-width':4.5, 'stroke-linejoin':'round','stroke-linecap':'round', opacity:0.55, filter:'url(#glow)'});
+  scene.appendChild(beamPath);
+
+  // ---- lens -> stage hourglass ----
+  const apertureHalf = 30;
+  const hg1 = el('path',{
+    d:`M ${lensBottom.x-apertureHalf},${lensBottom.y}
+       C ${lensBottom.x-apertureHalf},${focalY-30} ${lensBottom.x-4},${focalY-10} ${lensBottom.x},${focalY}
+       C ${lensBottom.x+4},${focalY-10} ${lensBottom.x+apertureHalf},${focalY-30} ${lensBottom.x+apertureHalf},${lensBottom.y} Z`,
+    fill:col, opacity:0.13});
+  scene.appendChild(hg1);
+  const hg2 = el('path',{
+    d:`M ${lensBottom.x-4},${focalY-10}
+       Q ${lensBottom.x},${focalY} ${lensBottom.x-spotHalfPx},${stageY}
+       L ${lensBottom.x+spotHalfPx},${stageY}
+       Q ${lensBottom.x},${focalY} ${lensBottom.x+4},${focalY-10} Z`,
+    fill:col, opacity:0.3});
+  scene.appendChild(hg2);
+
+  const focalLine = el('line',{x1:lensBottom.x-90,x2:lensBottom.x+90,y1:focalY,y2:focalY, stroke:'#c3c8d4','stroke-width':2,'stroke-dasharray':'6 6'});
+  scene.appendChild(focalLine);
+  const focalLabel = el('text',{x:lensBottom.x+96,y:focalY+4,fill:'#9aa1b4','font-size':11,'font-family':'JetBrains Mono, monospace'});
+  focalLabel.textContent='focal plane';
+  scene.appendChild(focalLabel);
+
+  // ---- 컴포넌트 그리기 ----
+  Object.keys(pos).forEach(id=>{
+    const sp = NODE_SPEC[id];
+    const active = nodeActive(id);
+    const p = pos[id];
+    let color, tag;
+    if(id==='laser'){ color=col; tag = `${state.wavelength}nm · ${state.pavg}W · ${state.reprate}kHz`; }
+    else if(id==='att'){ color='#f5a623'; tag = active? `T = ${state.attT}%` : null; }
+    else if(id==='bet'){ color='#2dd4bf'; tag = active? `T = ${Math.round(BET_FIXED_T*100)}% (고정)` : null; }
+    else if(id==='lens'){ color='#3b82f6'; tag = `z=${state.z.toFixed(1)}mm · ⌀${(w_um*2).toFixed(1)}μm`; }
+    else { color='#b7bfd0'; tag = (id==='m1')? `R=${Math.round(MIRROR_FIXED_R*100)}% (all)` : null; }
+
+    if(sp.type==='box'){
+      drawBox3D(scene, p.x, p.y, sp.w, sp.h, color, active, sp.lines, tag);
+    } else {
+      drawCircle3D(scene, p.x, p.y, sp.r, color, active, sp.lines, tag, id==='m5');
+    }
+  });
+
+  // ---- Stage ----
+  const stageRect = el('rect',{x:stageX-stageW/2,y:stageY,width:stageW,height:stageH,rx:6,fill:'url(#stageGrad)',stroke:'var(--outline)','stroke-width':4});
+  scene.appendChild(stageRect);
+  [stageX-stageW/2+20, stageX+stageW/2-20].forEach(lx=>{
+    const legH = Math.max(10, maxY-40-(stageY+stageH));
+    const leg = el('rect',{x:lx-6,y:stageY+stageH,width:12,height:legH, fill:'#33384a', stroke:'var(--outline)','stroke-width':3});
+    scene.appendChild(leg);
+  });
+  const stageLabel = el('text',{x:stageX,y:maxY-16,'text-anchor':'middle','font-family':'Pretendard,sans-serif','font-weight':'800','font-size':13,fill:'#6b7280'});
+  stageLabel.textContent='STAGE';
+  scene.appendChild(stageLabel);
+  const fTag = `${fluence_mJcm2(state.z).toFixed(1)} mJ/cm²`;
+  addTag(scene, stageX, stageY-stageH*0.4, fTag, col);
+
+  // ---- Spot glow ----
+  gradId++;
+  const gid='spotGlow'+gradId;
+  const rg = el('radialGradient',{id:gid,cx:'50%',cy:'50%',r:'50%'});
+  rg.appendChild(el('stop',{offset:'0%','stop-color':'#ffffff','stop-opacity':'1'}));
+  rg.appendChild(el('stop',{offset:'45%','stop-color':col,'stop-opacity':'0.9'}));
+  rg.appendChild(el('stop',{offset:'100%','stop-color':col,'stop-opacity':'0'}));
+  defs.appendChild(rg);
+  const spot = el('circle',{cx:stageX,cy:stageY+2,r:spotHalfPx,fill:`url(#${gid})`});
+  scene.appendChild(spot);
+
+  // ---- pulse indicator ----
+  scene._beamPts = activePts;
+  scene._hgTop = {x1:lensBottom.x, y1:lensBottom.y};
+  scene._hgBottom = {x1:lensBottom.x, y1:focalY, x2:stageX, y2:stageY+2};
+  const pulse = el('circle',{id:'beamPulseIndicator', r:7, fill:'#ffffff', stroke:col,'stroke-width':2, filter:'url(#glow)'});
+  scene.appendChild(pulse);
+}
+
+/* ===================== 애니메이션 ===================== */
+function getFullPath(){
+  const pts = scene._beamPts.slice();
+  pts.push({x:scene._hgTop.x1, y:scene._hgTop.y1});
+  pts.push({x:scene._hgBottom.x2, y:scene._hgBottom.y2});
+  return pts.map(p=>[p.x,p.y]);
+}
+function segLen(a,b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+function animate(ts){
+  if(!scene._beamPts){ requestAnimationFrame(animate); return; }
+  const pts = getFullPath();
+  let total=0; const lens=[];
+  for(let i=0;i<pts.length-1;i++){ const l=segLen(pts[i],pts[i+1]); lens.push(l); total+=l; }
+  const speed=260;
+  const dur=Math.max(total/speed,0.6);
+  const t=((ts/1000)%dur)/dur;
+  let target=t*total, seg=0;
+  while(seg<lens.length && target>lens[seg]){ target-=lens[seg]; seg++; }
+  if(seg>=lens.length) seg=lens.length-1;
+  const a=pts[seg], b=pts[seg+1]||pts[seg];
+  const st=lens[seg]?target/lens[seg]:0;
+  const x=a[0]+(b[0]-a[0])*st, y=a[1]+(b[1]-a[1])*st;
+  const dotEl=document.getElementById('beamPulseIndicator');
+  if(dotEl){ dotEl.setAttribute('cx',x); dotEl.setAttribute('cy',y); }
+  requestAnimationFrame(animate);
+}
+
+/* ===================== UI ===================== */
+function fmt(n,d){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+function buildDistanceInputs(){
+  const grid = document.getElementById('distance-grid');
+  grid.innerHTML='';
+  SEGMENT_DEFS.forEach(seg=>{
+    const f = document.createElement('div'); f.className='field';
+    const l = document.createElement('label'); l.textContent=seg.label; l.style.fontSize='10.5px';
+    const inp = document.createElement('input'); inp.type='number'; inp.min=20; inp.max=800; inp.step=10;
+    inp.value = state.distances[seg.key]; inp.id='dist-'+seg.key;
+    inp.addEventListener('input', ()=>{ state.distances[seg.key]=parseFloat(inp.value)||20; render(); });
+    f.appendChild(l); f.appendChild(inp);
+    grid.appendChild(f);
+  });
+}
+
+function updateOutputs(){
+  const P=Pstage_W(), E=Epulse_J(), w_um=w_at_z_m(state.z)*1e6, F=fluence_mJcm2(state.z);
+  document.getElementById('out-power').innerHTML = fmt(P,2)+' <small>W</small>';
+  document.getElementById('out-energy').innerHTML = fmt(E*1e6,2)+' <small>µJ</small>';
+  document.getElementById('out-spot').innerHTML = fmt(w_um*2,1)+' <small>µm</small>';
+  document.getElementById('out-fluence').innerHTML = fmt(F,1)+' <small>mJ/cm²</small>';
+  document.getElementById('z-val').textContent = fmt(state.z,1)+' mm';
+  document.getElementById('w0-readout').textContent = fmt(W0_UM_CAL*(state.wavelength/CAL_LAMBDA),1)+' μm';
+
+  const tv = parseFloat(document.getElementById('target-f').value);
+  const statusEl = document.getElementById('target-status');
+  if(!isNaN(tv) && tv>0){
+    const req = requiredZ_mm(tv);
+    if(req===null){
+      statusEl.className='target-status bad';
+      statusEl.textContent = `focal plane(z=0)에서도 최대 ${fmt(fluence_mJcm2(0),1)} mJ/cm²까지만 가능 — 목표값 도달 불가. Attenuator 값을 올리거나 파워를 확인할 것.`;
+    } else {
+      statusEl.className='target-status ok';
+      statusEl.innerHTML = `목표 ${fmt(tv,1)} mJ/cm² → stage 높이 <b>z = ±${fmt(req,2)} mm</b> 필요. 현재 z=${fmt(state.z,1)}mm에서는 ${fmt(F,1)} mJ/cm².`;
+    }
+  } else {
+    statusEl.className='target-status';
+    statusEl.textContent='목표 fluence를 입력하면 필요한 stage 높이를 계산함.';
+  }
+}
+
+function render(){ buildScene(); updateOutputs(); }
+
+document.getElementById('wavelength').addEventListener('change', e=>{
+  state.wavelength = parseInt(e.target.value);
+  document.getElementById('dot-laser').style.background = currentColor();
+  render();
+});
+document.getElementById('pavg').addEventListener('input', e=>{ state.pavg=parseFloat(e.target.value)||0; render(); });
+document.getElementById('reprate').addEventListener('input', e=>{ state.reprate=parseFloat(e.target.value)||1; render(); });
+document.getElementById('pulsewidth').addEventListener('input', e=>{ state.pulsewidth=parseFloat(e.target.value)||1; });
+document.getElementById('m2').addEventListener('input', e=>{ state.m2=parseFloat(e.target.value)||1.2; render(); });
+document.getElementById('att-t').addEventListener('input', e=>{
+  state.attT=parseInt(e.target.value); document.getElementById('att-t-val').textContent=state.attT+'%'; render();
+});
+document.getElementById('z-slider').addEventListener('input', e=>{ state.z=parseFloat(e.target.value); render(); });
+document.getElementById('target-f').addEventListener('input', updateOutputs);
+
+document.querySelectorAll('.switch').forEach(sw=>{
+  sw.addEventListener('click', ()=>{
+    const key = sw.getAttribute('data-toggle');
+    sw.classList.toggle('on');
+    if(key==='attenuator') state.attenuatorOn = sw.classList.contains('on');
+    else if(key==='bet') state.betOn = sw.classList.contains('on');
+    else state.mirrors[key] = sw.classList.contains('on');
+    render();
+  });
+});
+
+buildDistanceInputs();
+render();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

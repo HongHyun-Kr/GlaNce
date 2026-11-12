@@ -1,0 +1,27 @@
+﻿metric,value
+N_grains,87
+mean_ECD_um,0.3949326294179793
+sd_ECD_um,0.12138738718183992
+D10_um,0.27734243462093267
+D50_um,0.3850107094396473
+D90_um,0.5611187236246136
+area_weighted_ECD_um,0.4707130632147358
+mean_aspect_ratio,1.6843049162485881
+intercept_Lx_um,0.300567739062674
+intercept_Ly_um,0.287363967751377
+Lx_over_Ly,1.0459479015918958
+file,demo_1_hitachi.png
+pixel_nm,2.481389578163772
+working_scale,2
+gb_type,line
+polarity,dark
+line_sigma_px,1.92
+line_filter_px,24
+thr_high,0.5
+thr_low,0.18
+seed_h_px,3
+merge_weak,0.15
+min_ecd_nm,80
+exclude_edge,true
+roi_px,0 0 2048 1433
+manual_edits,0

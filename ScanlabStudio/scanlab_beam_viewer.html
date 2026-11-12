@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCANLAB 빔 경로 뷰어 — Rasterscan_I0340_N800</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --ink:#14151a;
+    --sub:#6b7280;
+    --line:#e6e7eb;
+    --line-strong:#d2d4da;
+    --accent:#7c3aed;      /* UV 355nm 빔 마커 색 */
+    --accent-soft:#efe7fd;
+    --panel:#fafafa;
+    --mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+    --sans: -apple-system, "Segoe UI", "Pretendard", "Malgun Gothic", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    display:flex; justify-content:center; padding:28px 16px 60px;
+  }
+  .app{ width:100%; max-width:920px; }
+  header{ margin-bottom:16px; }
+  header h1{
+    font-size:16px; font-weight:700; letter-spacing:-0.01em; margin:0 0 4px;
+  }
+  header p{
+    margin:0; font-size:12.5px; color:var(--sub); font-family:var(--mono);
+    line-height:1.6;
+  }
+  .stage{
+    position:relative; width:100%; aspect-ratio:1/1; max-width:720px; margin:18px auto 0;
+    border:1px solid var(--line); border-radius:2px; background:#fff;
+  }
+  canvas{ position:absolute; top:0; left:0; width:100%; height:100%; }
+  #overlay{ pointer-events:none; }
+
+  .hud{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:1px;
+    background:var(--line); border:1px solid var(--line); margin:14px auto 0; max-width:720px;
+    font-family:var(--mono); font-size:11.5px;
+  }
+  .hud div{ background:var(--panel); padding:9px 10px; }
+  .hud .k{ color:var(--sub); font-size:10px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+  .hud .v{ font-weight:600; }
+
+  .controls{
+    max-width:720px; margin:14px auto 0; display:flex; flex-direction:column; gap:10px;
+  }
+  .row{ display:flex; align-items:center; gap:10px; }
+  button{
+    font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer;
+    border:1px solid var(--line-strong); background:#fff; color:var(--ink);
+    padding:7px 14px; border-radius:3px; transition:background .12s;
+  }
+  button:hover{ background:var(--panel); }
+  button.primary{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  button.primary:hover{ background:#2b2c33; }
+  input[type=range]{
+    -webkit-appearance:none; flex:1; height:3px; background:var(--line-strong); border-radius:2px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:12px; height:12px; border-radius:50%;
+    background:var(--accent); cursor:pointer; border:2px solid #fff; box-shadow:0 0 0 1px var(--accent);
+  }
+  .label{ font-family:var(--mono); font-size:11px; color:var(--sub); white-space:nowrap; min-width:78px; }
+  .rate-val{ font-family:var(--mono); font-size:11px; min-width:44px; text-align:right; }
+  .checkline{ display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--sub); }
+
+  .legend{
+    max-width:720px; margin:16px auto 0; font-family:var(--mono); font-size:11px; color:var(--sub);
+  }
+  .grad{
+    height:8px; border-radius:2px; margin:6px 0 4px;
+    background:linear-gradient(90deg,#2563eb,#0ea5e9,#f59e0b);
+  }
+  .grad-labels{ display:flex; justify-content:space-between; }
+  .note{ margin-top:10px; font-size:11px; color:var(--sub); line-height:1.7; }
+  .note b{ color:var(--ink); }
+  .swatch{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:5px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>SCANLAB 빔 경로 뷰어</h1>
+    <p>source: Rasterscan_I0340_N800_260429.m · 12×12 = 144 cell · one-stroke raster scan<br>
+       RR 50 kHz · pitch 5.1265 µm · cell 1.2 × 1.2 mm</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="base"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="hud">
+    <div><div class="k">cell</div><div class="v" id="hud-cell">–</div></div>
+    <div><div class="k">X (mm)</div><div class="v" id="hud-x">–</div></div>
+    <div><div class="k">Y (mm)</div><div class="v" id="hud-y">–</div></div>
+    <div><div class="k">speed</div><div class="v" id="hud-speed">–</div></div>
+    <div><div class="k">elapsed / total</div><div class="v" id="hud-time">–</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <button class="primary" id="btn-play">재생</button>
+      <button id="btn-reset">처음으로</button>
+      <div class="checkline">
+        <input type="checkbox" id="chk-jump" checked>
+        <label for="chk-jump">점프 이동 표시</label>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">재생 배속</span>
+      <input type="range" id="rate" min="1" max="200" value="30" step="1">
+      <span class="rate-val" id="rate-val">30×</span>
+    </div>
+    <div class="row">
+      <span class="label">스크럽</span>
+      <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+    </div>
+  </div>
+
+  <div class="legend">
+    <div>cell 색상 = scan speed 매핑</div>
+    <div class="grad"></div>
+    <div class="grad-labels"><span id="leg-min">–</span><span id="leg-max">–</span></div>
+    <div class="note">
+      <span class="swatch" style="background:#0ea5e9"></span>실선 = marking(조사) 구간 &nbsp;·&nbsp;
+      <span class="swatch" style="background:repeating-linear-gradient(90deg,#c9803b 0 4px,transparent 4px 7px)"></span>점선 = 논마킹 점프 구간(JumpSpeed)<br>
+      이 파일은 전 cell이 동일 pitch라 speed가 <b>단일값</b>으로 나타남 — group_setting.m의 <b>ds</b>를 cell별로 바꾸면 색이 갈라지도록 설계돼 있음.
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+
+  // ───────────────────────── 1. MATLAB 스크립트 파라미터 (change!) ─────────────────────────
+  const RR   = 50;          // Repetition Rate [kHz]
+  const SPx  = 5.1265;      // scan pitch [µm]
+  const SPy  = 5.1265;      // line pitch [µm]
+  const PH0  = 1.2;         // cell height 초기값 [mm]
+  const PW0  = 1.2;         // cell width 초기값 [mm]
+  const GN   = 144;
+  const rowValues = [-8.2,-6.6,-5,-3.4,-1.8,-0.2,1.4,3,4.6,6.2,7.8,9.4];      // GTX
+  const colValues = [9.4,7.8,6.2,4.6,3.0,1.4,-0.2,-1.8,-3.4,-5.0,-6.6,-8.2];  // GTY
+
+  // ───────────────────────── 2. group_setting.m + polygon_setting.m 로직 재현 ─────────────────────────
+  const dl = SPy/1000, ds = SPx/1000;   // mm
+  const SS_val = RR*SPx/1000;           // scan speed [m/s]
+  const JS_val = SS_val;                // jump speed [m/s]
+  const speedMmS = SS_val*1000;         // mm/s (marking)
+  const jumpMmS  = JS_val*1000;         // mm/s (jump)
+
+  let E = Math.round((PH0*1000)/SPy);
+  const LN = (E % 2 === 0) ? E-1 : E;   // 홀수 라인 선호
+  const PN = LN*2;
+
+  function buildCells(){
+    const cells=[];
+    for(let g=1; g<=GN; g++){
+      const g0=g-1, i0=g0%12, j0=Math.floor(g0/12);
+      const GTX = rowValues[j0], GTY = colValues[i0];
+
+      const PH = (LN-1)*dl;   // S='R' 이므로 PH 재계산, PW는 초기값 유지
+      const PW = PW0;
+      const GW = PW, GH = PH;
+      const GCX = GTX - GW/2, GCY = GTY - GH/2;
+      const PCX = GCX, PCY = GCY;
+      const XX = [GTX-GW, GTX];
+      const YY = [GTY-GH, GTY];
+
+      // L='D'
+      const FPX = XX[0], FPY = YY[1];
+      const d = -dl;
+      let PXX = FPX, PYY = PCY;
+      let PX = FPX, PY = FPY;
+
+      const pts = new Array(PN);
+      for(let p=0;p<PN;p++){
+        pts[p] = [PX,PY];
+        if(PX === PXX){
+          if(PX === XX[0]) PX = XX[1];
+          else if(PX === XX[1]) PX = XX[0];
+        } else PXX = PX;
+        if(PY === PYY){ PY = PY + d; } else PYY = PY;
+      }
+      cells.push({g, GCX,GCY,GW,GH, SS:speedMmS, JS:jumpMmS, pts});
+    }
+    return cells;
+  }
+
+  const cells = buildCells();
+
+  // ───────────────────────── 3. 좌표 → 화면 변환 ─────────────────────────
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  cells.forEach(c=>c.pts.forEach(([x,y])=>{
+    if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y;
+  }));
+
+  const baseC = document.getElementById('base');
+  const ovC   = document.getElementById('overlay');
+  const bctx  = baseC.getContext('2d');
+  const octx  = ovC.getContext('2d');
+
+  let DPR=1, DISP=720, PAD=24, scale=1, offX=0, offY=0;
+
+  function resize(){
+    const rect = baseC.getBoundingClientRect();
+    DISP = rect.width;
+    DPR = window.devicePixelRatio || 1;
+    [baseC, ovC].forEach(c=>{
+      c.width = DISP*DPR; c.height = DISP*DPR;
+    });
+    bctx.setTransform(DPR,0,0,DPR,0,0);
+    octx.setTransform(DPR,0,0,DPR,0,0);
+
+    const spanX = (maxX-minX)||1, spanY=(maxY-minY)||1;
+    scale = Math.min((DISP-PAD*2)/spanX, (DISP-PAD*2)/spanY);
+    offX = (DISP - spanX*scale)/2 - minX*scale;
+    offY = (DISP - spanY*scale)/2 - minY*scale;
+
+    drawGrid();
+    rebuildScreenPts();
+    committed = -1; // 강제 재드로우
+    render(true);
+  }
+
+  function toScreen(x,y){
+    return [ offX + x*scale, DISP - (offY + y*scale) ];
+  }
+
+  function rebuildScreenPts(){
+    cells.forEach(c=>{ c.spts = c.pts.map(p=>toScreen(p[0],p[1])); });
+  }
+
+  function drawGrid(){
+    bctx.clearRect(0,0,DISP,DISP);
+    bctx.save();
+    bctx.strokeStyle = '#f0f0f2';
+    bctx.lineWidth = 1;
+    for(let mm=Math.ceil(minX-1); mm<=Math.ceil(maxX+1); mm+=2){
+      const [sx] = toScreen(mm,0);
+      bctx.beginPath(); bctx.moveTo(sx,0); bctx.lineTo(sx,DISP); bctx.stroke();
+    }
+    for(let mm=Math.ceil(minY-1); mm<=Math.ceil(maxY+1); mm+=2){
+      const [,sy] = toScreen(0,mm);
+      bctx.beginPath(); bctx.moveTo(0,sy); bctx.lineTo(DISP,sy); bctx.stroke();
+    }
+    // cell 외곽 박스 (얇게)
+    bctx.strokeStyle = '#e9e9ec';
+    cells.forEach(c=>{
+      const [x0,y0] = toScreen(c.GCX-c.GW/2, c.GCY+c.GH/2);
+      const [x1,y1] = toScreen(c.GCX+c.GW/2, c.GCY-c.GH/2);
+      bctx.strokeRect(x0,y0, x1-x0, y1-y0);
+    });
+    bctx.restore();
+  }
+
+  // ───────────────────────── 4. 속도 컬러 매핑 ─────────────────────────
+  let ssMin=Infinity, ssMax=-Infinity;
+  cells.forEach(c=>{ if(c.SS<ssMin) ssMin=c.SS; if(c.SS>ssMax) ssMax=c.SS; });
+  document.getElementById('leg-min').textContent = ssMin.toFixed(2)+' mm/s';
+  document.getElementById('leg-max').textContent = ssMax.toFixed(2)+' mm/s';
+
+  const stops = [[37,99,235],[14,165,233],[245,158,11]];
+  function colorForSpeed(v){
+    const t = (ssMax>ssMin) ? (v-ssMin)/(ssMax-ssMin) : 0.5;
+    const seg = t<0.5 ? 0 : 1;
+    const lt = t<0.5 ? t/0.5 : (t-0.5)/0.5;
+    const a = stops[seg], b = stops[seg+1];
+    const r = Math.round(a[0]+(b[0]-a[0])*lt);
+    const g = Math.round(a[1]+(b[1]-a[1])*lt);
+    const bl= Math.round(a[2]+(b[2]-a[2])*lt);
+    return `rgb(${r},${g},${bl})`;
+  }
+  cells.forEach(c=>{ c.color = colorForSpeed(c.SS); });
+
+  // ───────────────────────── 5. 타이밍(거리/속도) 사전계산 ─────────────────────────
+  function dist(a,b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+
+  let t=0;
+  cells.forEach((c,idx)=>{
+    // 이전 cell 마지막 점 → 이 cell 첫 점 (jump)
+    if(idx>0){
+      const prev = cells[idx-1].pts[cells[idx-1].pts.length-1];
+      const jd = dist(prev, c.pts[0]);
+      c.jumpDur = jd / c.JS;
+      c.jumpStart = t;
+      t += c.jumpDur;
+    } else {
+      c.jumpDur = 0; c.jumpStart = t;
+    }
+    c.markStart = t;
+    const cum = new Array(c.pts.length).fill(0);
+    for(let k=1;k<c.pts.length;k++){
+      cum[k] = cum[k-1] + dist(c.pts[k-1], c.pts[k]) / c.SS;
+    }
+    c.cum = cum; // cell 내부 상대시간
+    t += cum[cum.length-1];
+    c.markEnd = t;
+  });
+  const totalDuration = t;
+  document.getElementById('hud-time').textContent = `– / ${totalDuration.toFixed(2)}s`;
+
+  // ───────────────────────── 6. 재생 상태 ─────────────────────────
+  let elapsed = 0;
+  let playing = false;
+  let rate = 30;
+  let committed = -1; // base 캔버스에 확정 반영된 cell index
+  let lastTs = null;
+  const showJump = ()=>document.getElementById('chk-jump').checked;
+
+  function drawCellFull(ctx, c){
+    ctx.strokeStyle = c.color;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(c.spts[0][0], c.spts[0][1]);
+    for(let k=1;k<c.spts.length;k++) ctx.lineTo(c.spts[k][0], c.spts[k][1]);
+    ctx.stroke();
+  }
+  function drawJumpFull(ctx, c, idx){
+    if(idx===0 || !showJump()) return;
+    const prev = cells[idx-1].spts[cells[idx-1].spts.length-1];
+    ctx.save();
+    ctx.strokeStyle = '#c9803b';
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(prev[0],prev[1]);
+    ctx.lineTo(c.spts[0][0], c.spts[0][1]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function findCellIndex(tt){
+    if(tt<=0) return 0;
+    if(tt>=totalDuration) return cells.length-1;
+    for(let i=0;i<cells.length;i++){
+      if(tt < cells[i].markEnd) return i;
+    }
+    return cells.length-1;
+  }
+
+  function render(force){
+    const idx = findCellIndex(elapsed);
+
+    if(committed > idx || force){
+      // 뒤로 이동 → base 새로 그림
+      drawGrid();
+      committed = -1;
+    }
+    while(committed < idx-1){
+      committed++;
+      drawJumpFull(bctx, cells[committed], committed);
+      drawCellFull(bctx, cells[committed]);
+    }
+    committed = idx-1;
+
+    const c = cells[idx];
+    octx.clearRect(0,0,DISP,DISP);
+
+    let beamPt;
+    if(elapsed < c.markStart){
+      // jump 진행 중
+      const frac = c.jumpDur>0 ? Math.min(1,(elapsed-c.jumpStart)/c.jumpDur) : 1;
+      const prev = idx>0 ? cells[idx-1].spts[cells[idx-1].spts.length-1] : c.spts[0];
+      if(showJump()){
+        octx.save();
+        octx.strokeStyle='#c9803b'; octx.lineWidth=0.8; octx.setLineDash([3,3]);
+        octx.beginPath();
+        octx.moveTo(prev[0],prev[1]);
+        beamPt = [ prev[0]+(c.spts[0][0]-prev[0])*frac, prev[1]+(c.spts[0][1]-prev[1])*frac ];
+        octx.lineTo(beamPt[0], beamPt[1]);
+        octx.stroke();
+        octx.restore();
+      } else beamPt = c.spts[0];
+    } else {
+      const rel = elapsed - c.markStart;
+      // 현재 cell 내 segment 탐색
+      let k=0;
+      while(k < c.cum.length-1 && c.cum[k+1] < rel) k++;
+      const segStart = c.cum[k], segEnd = c.cum[Math.min(k+1,c.cum.length-1)];
+      const segFrac = segEnd>segStart ? Math.min(1,(rel-segStart)/(segEnd-segStart)) : 1;
+      const p0 = c.spts[k], p1 = c.spts[Math.min(k+1,c.spts.length-1)];
+      beamPt = [ p0[0]+(p1[0]-p0[0])*segFrac, p0[1]+(p1[1]-p0[1])*segFrac ];
+
+      octx.strokeStyle = c.color;
+      octx.lineWidth = 1.1;
+      octx.beginPath();
+      octx.moveTo(c.spts[0][0], c.spts[0][1]);
+      for(let j=1;j<=k;j++) octx.lineTo(c.spts[j][0], c.spts[j][1]);
+      octx.lineTo(beamPt[0], beamPt[1]);
+      octx.stroke();
+    }
+
+    // beam marker
+    octx.save();
+    octx.fillStyle = 'rgba(124,58,237,0.16)';
+    octx.beginPath(); octx.arc(beamPt[0],beamPt[1], 7, 0, Math.PI*2); octx.fill();
+    octx.fillStyle = '#7c3aed';
+    octx.beginPath(); octx.arc(beamPt[0],beamPt[1], 2.6, 0, Math.PI*2); octx.fill();
+    octx.restore();
+
+    // HUD
+    const my = elapsed < c.markStart ? null : (function(){
+      // 실제 mm 좌표 역추정을 위해 pts 사용(보간 전 raw)
+      const rel = elapsed - c.markStart;
+      let k=0; while(k < c.cum.length-1 && c.cum[k+1] < rel) k++;
+      return c.pts[k];
+    })();
+    document.getElementById('hud-cell').textContent = `${c.g} / ${GN}`;
+    document.getElementById('hud-x').textContent = my? my[0].toFixed(3) : c.pts[0][0].toFixed(3);
+    document.getElementById('hud-y').textContent = my? my[1].toFixed(3) : c.pts[0][1].toFixed(3);
+    document.getElementById('hud-speed').textContent = (elapsed<c.markStart? c.JS : c.SS).toFixed(1)+' mm/s';
+    document.getElementById('hud-time').textContent = `${elapsed.toFixed(2)}s / ${totalDuration.toFixed(2)}s`;
+
+    const scrub = document.getElementById('scrub');
+    if(document.activeElement !== scrub){
+      scrub.value = Math.round((elapsed/totalDuration)*1000);
+    }
+  }
+
+  // ───────────────────────── 7. 애니메이션 루프 ─────────────────────────
+  function frame(ts){
+    if(playing){
+      if(lastTs===null) lastTs=ts;
+      const dt = (ts-lastTs)/1000;
+      lastTs = ts;
+      elapsed = Math.min(totalDuration, elapsed + dt*rate);
+      if(elapsed>=totalDuration){ playing=false; setPlayBtn(); }
+      render(false);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function setPlayBtn(){
+    document.getElementById('btn-play').textContent = playing ? '일시정지' : '재생';
+  }
+
+  document.getElementById('btn-play').addEventListener('click', ()=>{
+    if(elapsed>=totalDuration) elapsed=0;
+    playing = !playing;
+    lastTs = null;
+    setPlayBtn();
+  });
+  document.getElementById('btn-reset').addEventListener('click', ()=>{
+    playing=false; setPlayBtn(); elapsed=0; committed=-1; render(true);
+  });
+  document.getElementById('rate').addEventListener('input', (e)=>{
+    rate = +e.target.value;
+    document.getElementById('rate-val').textContent = rate+'×';
+  });
+  document.getElementById('scrub').addEventListener('input', (e)=>{
+    elapsed = (+e.target.value/1000)*totalDuration;
+    render(false);
+  });
+  document.getElementById('chk-jump').addEventListener('change', ()=>{ committed=-1; render(true); });
+  window.addEventListener('resize', resize);
+
+  resize();
+})();
+</script>
+</body>
+</html>

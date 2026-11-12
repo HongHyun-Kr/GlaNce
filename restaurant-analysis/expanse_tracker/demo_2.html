@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>식당 손익 분석 데모 - 반도체 포트폴리오용</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; margin:0; padding:0; background:#0f172a; color:#e5e7eb; }
+    header { padding:16px 20px; border-bottom:1px solid #1f2937; }
+    header h1 { margin:0; font-size:20px; }
+    header p { margin:4px 0 0; font-size:13px; color:#9ca3af; }
+    main { max-width:1120px; margin:0 auto; padding:18px 12px 40px; }
+    .layout { display:grid; grid-template-columns:1.4fr 1.6fr; gap:14px; }
+    @media(max-width:900px){ .layout{ grid-template-columns:1fr; } }
+    .card { background:#020617; border-radius:12px; padding:14px 12px 16px; border:1px solid #1e293b; box-shadow:0 16px 40px rgba(15,23,42,0.6); }
+    .card h2 { margin:0 0 8px; font-size:15px; }
+    .card small { font-size:11px; color:#6b7280; }
+    .tabs { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+    .tab-btn { padding:5px 8px; border-radius:999px; border:1px solid #1f2937; background:#020617; color:#9ca3af; font-size:11px; cursor:pointer; }
+    .tab-btn.active { background:#1d4ed8; color:white; border-color:#1d4ed8; }
+    .tab-pane { display:none; margin-top:4px; }
+    .tab-pane.active { display:block; }
+    .field-group-title { font-size:12px; color:#9ca3af; margin:8px 0 4px; }
+    .field { margin-bottom:6px; }
+    .field label { display:block; font-size:11px; margin-bottom:2px; color:#9ca3af; }
+    .field input { width:100%; box-sizing:border-box; padding:5px 7px; border-radius:6px; border:1px solid #1f2937; background:#020617; color:#e5e7eb; font-size:12px; }
+    .field-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+    .field-row-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+    button.primary { margin-top:8px; padding:7px 10px; border-radius:999px; border:none; background:#22c55e; color:#022c22; font-size:12px; cursor:pointer; font-weight:600; }
+    button.primary:hover { background:#16a34a; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:6px; }
+    .metric { padding:8px 10px; border-radius:10px; background:radial-gradient(circle at top,#0b1120,#020617); border:1px solid #1f2937; }
+    .metric-label { font-size:11px; color:#9ca3af; margin-bottom:2px; }
+    .metric-value { font-size:15px; font-weight:600; color:#e5e7eb; }
+    .metric-sub { font-size:11px; color:#6b7280; }
+    canvas { max-width:100%; background:#020617; border-radius:10px; border:1px solid #111827; }
+    .plots { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; margin-top:10px; }
+    .plot-card { padding:8px 8px 10px; border-radius:10px; background:#020617; border:1px solid #1f2937; }
+    .plot-card h3 { margin:0 0 4px; font-size:13px; color:#e5e7eb; }
+    .plot-card small { font-size:10px; color:#6b7280; }
+    .insight { margin-top:8px; font-size:12px; line-height:1.5; background:#020617; border-radius:10px; padding:8px 10px; border:1px dashed #1d4ed8; white-space:pre-line; }
+    .kpi-tag { display:inline-block; padding:2px 6px; border-radius:999px; font-size:10px; background:#1e293b; color:#e5e7eb; margin-right:4px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>식당 손익 분석 데모</h1>
+  <p>실제 식당 엑셀 정산 양식을 웹으로 재구성한 손익 분석 툴 (반도체 공정·수율 분석 관점 포트폴리오용)</p>
+</header>
+<main>
+  <div class="layout">
+    <section class="card">
+      <h2>1. 입력 (실제 엑셀 파란 셀 전체 반영)</h2>
+      <small>매출·배달앱 수수료·재료비·인건비·운영비·공과금까지 세부 입력 → 자동 KPI/그래프 계산</small>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="tab-basic">기본 매출</button>
+        <button class="tab-btn" data-tab="tab-delivery">배달앱 상세</button>
+        <button class="tab-btn" data-tab="tab-material">재료비 상세</button>
+        <button class="tab-btn" data-tab="tab-opex">운영비·공과금·인건비</button>
+      </div>
+      <div id="tab-basic" class="tab-pane active">
+        <div class="field-group-title">월 매출 구조</div>
+        <div class="field-row">
+          <div class="field">
+            <label>총 매출 (원)</label>
+            <input id="sales" type="number" value="35000000" />
+          </div>
+          <div class="field">
+            <label>세금 (원, 기본 10%)</label>
+            <input id="tax" type="number" value="3500000" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>홀 매출 (원)</label>
+            <input id="hallSales" type="number" value="25390000" />
+          </div>
+          <div class="field">
+            <label>배달 매출 (원)</label>
+            <input id="deliverySales" type="number" value="9610000" />
+          </div>
+        </div>
+      </div>
+      <div id="tab-delivery" class="tab-pane">
+        <div class="field-group-title">배달앱 고정 파라미터</div>
+        <div class="field-row-3">
+          <div class="field">
+            <label>쿠팡이츠 건당 배달비</label>
+            <input id="coupangFeePer" type="number" value="3300" />
+          </div>
+          <div class="field">
+            <label>배민 건당 배달비</label>
+            <input id="baeminFeePer" type="number" value="2000" />
+          </div>
+          <div class="field">
+            <label>땡겨요 건당 배달비</label>
+            <input id="ddangFeePer" type="number" value="2000" />
+          </div>
+        </div>
+        <div class="field-row-3">
+          <div class="field">
+            <label>쿠팡이츠 합계 수수료율</label>
+            <input id="coupangRate" type="number" step="0.001" value="0.119" />
+          </div>
+          <div class="field">
+            <label>배민 합계 수수료율</label>
+            <input id="baeminRate" type="number" step="0.001" value="0.101" />
+          </div>
+          <div class="field">
+            <label>땡겨요 합계 수수료율</label>
+            <input id="ddangRate" type="number" step="0.001" value="0.053" />
+          </div>
+        </div>
+        <div class="field-group-title">배달앱 월간 실적 (파란 입력)</div>
+        <div class="field-row-3">
+          <div class="field">
+            <label>배민 매출</label>
+            <input id="baeminSales" type="number" value="7680000" />
+          </div>
+          <div class="field">
+            <label>배민 배달건수</label>
+            <input id="baeminCount" type="number" value="222" />
+          </div>
+          <div class="field">
+            <label>배민 손님부담 배달비</label>
+            <input id="baeminCustFee" type="number" value="444000" />
+          </div>
+        </div>
+        <div class="field-row-3">
+          <div class="field">
+            <label>땡겨요 매출</label>
+            <input id="ddangSales" type="number" value="1930000" />
+          </div>
+          <div class="field">
+            <label>땡겨요 배달건수</label>
+            <input id="ddangCount" type="number" value="59" />
+          </div>
+          <div class="field">
+            <label>땡겨요 손님부담 배달비</label>
+            <input id="ddangCustFee" type="number" value="118000" />
+          </div>
+        </div>
+        <div class="field">
+          <label>부릉 배달팁 (원)</label>
+          <input id="vroongTip" type="number" value="1300000" />
+        </div>
+      </div>
+      <div id="tab-material" class="tab-pane">
+        <div class="field-group-title">재료비 (식자재·주류·포장재 등)</div>
+        <div class="field-row-3">
+          <div class="field"><label>마트</label><input id="matMart" type="number" value="1200000" /></div>
+          <div class="field"><label>아노</label><input id="matAno" type="number" value="2900000" /></div>
+          <div class="field"><label>수호수산</label><input id="matSuho" type="number" value="2860000" /></div>
+        </div>
+        <div class="field-row-3">
+          <div class="field"><label>한울</label><input id="matHanul" type="number" value="2700000" /></div>
+          <div class="field"><label>육류</label><input id="matMeat" type="number" value="600000" /></div>
+          <div class="field"><label>주류</label><input id="matLiquor" type="number" value="270000" /></div>
+        </div>
+        <div class="field-row-3">
+          <div class="field"><label>음료</label><input id="matDrink" type="number" value="50000" /></div>
+          <div class="field"><label>일회용기</label><input id="matPackage" type="number" value="210000" /></div>
+          <div class="field"><label>인터넷구매</label><input id="matOnline" type="number" value="1360000" /></div>
+        </div>
+      </div>
+      <div id="tab-opex" class="tab-pane">
+        <div class="field-group-title">운영비</div>
+        <div class="field-row-3">
+          <div class="field"><label>실부담 배달비</label><input id="opexDelivery" type="number" value="2177970" /></div>
+          <div class="field"><label>직원 식비</label><input id="opexMeal" type="number" value="400000" /></div>
+          <div class="field"><label>서비스</label><input id="opexService" type="number" value="100000" /></div>
+        </div>
+        <div class="field-row-3">
+          <div class="field"><label>마케팅</label><input id="opexMkt" type="number" value="500000" /></div>
+          <div class="field"><label>임차료(월세)</label><input id="opexRent" type="number" value="770000" /></div>
+          <div class="field"><label>기타고정비</label><input id="opexOther" type="number" value="500000" /></div>
+        </div>
+        <div class="field-group-title">공과금</div>
+        <div class="field-row-3">
+          <div class="field"><label>전기세</label><input id="utiElec" type="number" value="500000" /></div>
+          <div class="field"><label>가스비</label><input id="utiGas" type="number" value="450000" /></div>
+          <div class="field"><label>수도세</label><input id="utiWater" type="number" value="100000" /></div>
+        </div>
+        <div class="field-group-title">인건비</div>
+        <div class="field">
+          <label>인건비 합계</label>
+          <input id="labor" type="number" value="8960000" />
+        </div>
+      </div>
+      <button class="primary" onclick="updateAll()">손익 분석 및 시각화 업데이트</button>
+      <div style="margin-top:6px;">
+        <span class="kpi-tag">도메인: 식당 손익 구조</span>
+        <span class="kpi-tag">유형: 공정·수율 분석형 대시보드</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 핵심 손익 지표</h2>
+      <small>총매출 → 플랫폼별 수수료 → 재료비·인건비·고정비 → 순이익까지 전체 플로우 요약</small>
+      <div class="metrics" id="metrics"></div>
+      <div class="insight" id="insight"></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:14px;">
+    <h2>3. 시각화 플롯</h2>
+    <small>비용 구조 Breakdown / 배달앱 수익성 / 시간축 관점 손익 분석</small>
+    <div class="plots">
+      <div class="plot-card">
+        <h3>3-1. 비용 구조 Breakdown</h3>
+        <small>재료비·인건비·배달 관련 지출·운영비·공과금·세금</small>
+        <canvas id="costChart" height="170"></canvas>
+      </div>
+      <div class="plot-card">
+        <h3>3-2. 재료비 구성</h3>
+        <small>공정 Step 별 Loss 시각화와 유사한 식자재 비용 분해</small>
+        <canvas id="materialChart" height="170"></canvas>
+      </div>
+      <div class="plot-card">
+        <h3>3-3. 배달앱 수익성</h3>
+        <small>플랫폼별 매출·앱 수수료·실부담 배달비 비교</small>
+        <canvas id="deliveryChart" height="170"></canvas>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const fmtWon = v => v.toLocaleString('ko-KR') + '원';
+  const fmtPct = v => (v*100).toFixed(1) + '%';
+
+  function getNum(id){ return +document.getElementById(id).value || 0; }
+
+  function compute(){
+    const sales = getNum('sales');
+    const hallSales = getNum('hallSales');
+    const deliverySales = getNum('deliverySales');
+    const tax = getNum('tax');
+
+    // 재료비
+    const matMart = getNum('matMart');
+    const matAno = getNum('matAno');
+    const matSuho = getNum('matSuho');
+    const matHanul = getNum('matHanul');
+    const matMeat = getNum('matMeat');
+    const matLiquor = getNum('matLiquor');
+    const matDrink = getNum('matDrink');
+    const matPackage = getNum('matPackage');
+    const matOnline = getNum('matOnline');
+    const cogs = matMart+matAno+matSuho+matHanul+matMeat+matLiquor+matDrink+matPackage+matOnline;
+
+    // 운영비
+    const opexDelivery = getNum('opexDelivery');
+    const opexMeal = getNum('opexMeal');
+    const opexService = getNum('opexService');
+    const opexMkt = getNum('opexMkt');
+    const opexRent = getNum('opexRent');
+    const opexOther = getNum('opexOther');
+    const opex = opexDelivery+opexMeal+opexService+opexMkt+opexRent+opexOther;
+
+    // 공과금
+    const utiElec = getNum('utiElec');
+    const utiGas = getNum('utiGas');
+    const utiWater = getNum('utiWater');
+    const utilities = utiElec+utiGas+utiWater;
+
+    // 인건비
+    const labor = getNum('labor');
+
+    // 배달앱 파라미터 & 실적
+    const coupangFeePer = getNum('coupangFeePer');
+    const baeminFeePer = getNum('baeminFeePer');
+    const ddangFeePer = getNum('ddangFeePer');
+    const coupangRate = getNum('coupangRate');
+    const baeminRate = getNum('baeminRate');
+    const ddangRate = getNum('ddangRate');
+
+    const baeminSales = getNum('baeminSales');
+    const baeminCount = getNum('baeminCount');
+    const baeminCustFee = getNum('baeminCustFee');
+    const ddangSales = getNum('ddangSales');
+    const ddangCount = getNum('ddangCount');
+    const ddangCustFee = getNum('ddangCustFee');
+    const vroongTip = getNum('vroongTip');
+
+    // 플랫폼별 앱 수수료 & 실부담 배달비(가게부담)
+    const baeminCommission = baeminSales * baeminRate;
+    const ddangCommission = ddangSales * ddangRate;
+    const coupangSales = 0, coupangCount = 0, coupangCustFee = 0; // 예시: 현재 0으로 둠
+    const coupangCommission = coupangSales * coupangRate;
+
+    const baeminDeliveryCost = baeminFeePer * baeminCount - baeminCustFee;
+    const ddangDeliveryCost = ddangFeePer * ddangCount - ddangCustFee;
+    const coupangDeliveryCost = coupangFeePer * coupangCount - coupangCustFee;
+
+    const platformCommissionTotal = baeminCommission + ddangCommission + coupangCommission;
+    const platformDeliveryCostTotal = baeminDeliveryCost + ddangDeliveryCost + coupangDeliveryCost;
+    const deliveryRelatedCost = platformCommissionTotal + platformDeliveryCostTotal; // 운영비 중 일부와 개념상 겹침
+
+    // 총지출 & 손익
+    const totalCost = cogs + opex + utilities + labor + tax;
+    const profit = sales - totalCost;
+    const margin = sales>0 ? profit/sales : 0;
+    const cogsRate = sales>0 ? cogs/sales : 0;
+    const laborRate = sales>0 ? labor/sales : 0;
+    const deliveryShare = sales>0 ? deliverySales/sales : 0;
+
+    // 플랫폼별 기여이익(단순화: 재료비/인건비를 매출비례 배분)
+    const totalPlatformSales = coupangSales + baeminSales + ddangSales;
+    function platformContribution(salesP, commissionP, deliveryCostP){
+      if(totalPlatformSales<=0 || sales<=0) return {contrib:0, rate:0};
+      const shareOnTotal = salesP / sales;
+      const allocCOGS = cogs * shareOnTotal;
+      const allocLabor = labor * shareOnTotal;
+      const contrib = salesP - (commissionP + deliveryCostP + allocCOGS + allocLabor);
+      const rate = salesP>0 ? contrib/salesP : 0;
+      return {contrib, rate};
+    }
+    const baeminContrib = platformContribution(baeminSales, baeminCommission, baeminDeliveryCost);
+    const ddangContrib = platformContribution(ddangSales, ddangCommission, ddangDeliveryCost);
+    const coupangContrib = platformContribution(coupangSales, coupangCommission, coupangDeliveryCost);
+
+    // 고정비/변동비 대략 분해
+    const fixedCost = opexRent + opexOther + utilities + tax + labor*0.5; // 인건비 절반을 고정으로 가정
+    const variableCost = totalCost - fixedCost;
+    const fixedShare = totalCost>0 ? fixedCost/totalCost : 0;
+
+    return {
+      sales, hallSales, deliverySales, tax,
+      cogs, labor, opex, utilities,
+      matMart, matAno, matSuho, matHanul, matMeat, matLiquor, matDrink, matPackage, matOnline,
+      opexDelivery, opexMeal, opexService, opexMkt, opexRent, opexOther,
+      utiElec, utiGas, utiWater,
+      platformCommissionTotal, platformDeliveryCostTotal, deliveryRelatedCost,
+      totalCost, profit, margin, cogsRate, laborRate, deliveryShare,
+      baeminCommission, ddangCommission, coupangCommission,
+      baeminDeliveryCost, ddangDeliveryCost, coupangDeliveryCost,
+      baeminContrib, ddangContrib, coupangContrib,
+      fixedCost, variableCost, fixedShare
+    };
+  }
+
+  function renderMetrics(m){
+    const el = document.getElementById('metrics');
+    el.innerHTML = '';
+    const items = [
+      { label:'순수익', value:fmtWon(m.profit), sub:'총매출 - 총지출' },
+      { label:'순이익률', value:fmtPct(m.margin), sub:'순수익 / 총매출' },
+      { label:'원가율', value:fmtPct(m.cogsRate), sub:'재료비 / 총매출' },
+      { label:'인건비율', value:fmtPct(m.laborRate), sub:'인건비 / 총매출' },
+      { label:'배달 매출 비중', value:fmtPct(m.deliveryShare), sub:'배달 매출 / 총매출' },
+      { label:'배달앱 수수료+배달비', value:fmtWon(m.deliveryRelatedCost), sub:'앱 수수료 + 가게부담 배달비' },
+      { label:'고정비 비중(추정)', value:fmtPct(m.fixedShare), sub:'고정비 / 총지출' }
+    ];
+    for(const it of items){
+      const div = document.createElement('div');
+      div.className = 'metric';
+      div.innerHTML = `<div class="metric-label">${it.label}</div>
+                       <div class="metric-value">${it.value}</div>
+                       <div class="metric-sub">${it.sub}</div>`;
+      el.appendChild(div);
+    }
+  }
+
+  function renderInsight(m){
+    const area = document.getElementById('insight');
+    let lines = [];
+    if(m.sales===0){
+      lines.push('매출이 0으로 입력되어 있어 지표를 해석할 수 없습니다. 최소 한 달치 데이터를 입력해 주세요.');
+      area.textContent = lines.join('\n');
+      return;
+    }
+    // 순이익률 평가
+    if(m.margin < 0) lines.push('※ 순이익이 적자입니다. 고정비/배달 관련 비용을 우선적으로 점검해야 합니다.');
+    else if(m.margin < 0.05) lines.push('※ 순이익률이 5% 미만으로 낮습니다. 배달앱 수수료, 인건비, 임차료 등 고정비를 동시에 관리할 필요가 있습니다.');
+    else if(m.margin < 0.10) lines.push('※ 순이익률이 5~10% 구간입니다. 업계 평균 수준이며, 재료비·인건비 효율화 여지가 있습니다.');
+    else lines.push('※ 순이익률이 10% 이상으로 양호합니다. 현재 비용 구조를 유지하면서 매출 확장 전략을 검토할 수 있습니다.');
+
+    // 재료비·인건비
+    if(m.cogsRate > 0.40) lines.push('- 재료비율이 40%를 초과하여 수익성에 부담을 줄 수 있습니다. 메뉴 원가 구조를 재점검해 볼 필요가 있습니다.');
+    if(m.laborRate > 0.30) lines.push('- 인건비율이 30%를 초과했습니다. 피크/비피크 타임 인력 배치를 조정하거나, 업무 프로세스 효율화를 고려할 수 있습니다.');
+
+    // 배달 비중 및 수수료
+    if(m.deliveryShare > 0.3 && m.deliveryRelatedCost/m.sales > 0.05){
+      lines.push('- 배달 매출 비중이 높고, 배달앱 수수료·배달비가 매출의 5% 이상을 차지합니다. 배달 채널 믹스 최적화(플랫폼 분산/직접 배달 비중 조정)를 검토할 수 있습니다.');
+    }
+
+    // 고정비 비중
+    if(m.fixedShare > 0.5){
+      lines.push('- 고정비 비중이 50%를 초과하여 매출 변동에 대한 민감도가 큽니다. 임차료·공과금·세금 구조를 중장기적으로 관리하는 전략이 중요합니다.');
+    }
+
+    area.textContent = lines.join('\n');
+  }
+
+  let costChart, materialChart, deliveryChart;
+
+  function renderCharts(m){
+    // 비용 구조 Breakdown
+    const ctx1 = document.getElementById('costChart').getContext('2d');
+    const costData = {
+      labels:['재료비','인건비','운영비','공과금','세금'],
+      datasets:[{
+        label:'비용 구성 (원)',
+        data:[m.cogs, m.labor, m.opex, m.utilities, m.tax],
+        backgroundColor:['#3b82f6','#10b981','#f97316','#6366f1','#ef4444']
+      }]
+    };
+    if(costChart){ costChart.data = costData; costChart.update(); }
+    else {
+      costChart = new Chart(ctx1, {
+        type:'bar',
+        data:costData,
+        options:{
+          responsive:true,
+          plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>fmtWon(ctx.parsed.y) } } },
+          scales:{ y:{ ticks:{ color:'#9ca3af', callback:v=>v>=1000000 ? (v/1000000)+'M' : (v/1000)+'k' }, grid:{color:'#111827'} }, x:{ ticks:{color:'#9ca3af'}, grid:{display:false} } }
+        }
+      });
+    }
+
+    // 재료비 구성
+    const ctx2 = document.getElementById('materialChart').getContext('2d');
+    const matLabels = ['마트','아노','수호수산','한울','육류','주류','음료','일회용기','인터넷구매'];
+    const matValues = [m.matMart,m.matAno,m.matSuho,m.matHanul,m.matMeat,m.matLiquor,m.matDrink,m.matPackage,m.matOnline];
+    const matData = {
+      labels:matLabels,
+      datasets:[{
+        label:'재료비 구성 (원)',
+        data:matValues,
+        backgroundColor:['#0ea5e9','#22c55e','#eab308','#f97316','#ef4444','#a855f7','#2dd4bf','#38bdf8','#facc15']
+      }]
+    };
+    if(materialChart){ materialChart.data = matData; materialChart.update(); }
+    else {
+      materialChart = new Chart(ctx2, {
+        type:'bar',
+        data:matData,
+        options:{
+          indexAxis:'y',
+          plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>fmtWon(ctx.parsed.x||ctx.parsed.y) } } },
+          scales:{ x:{ ticks:{ color:'#9ca3af', callback:v=>v>=1000000 ? (v/1000000)+'M' : (v/1000)+'k' }, grid:{color:'#111827'} }, y:{ ticks:{color:'#9ca3af'}, grid:{display:false} } }
+        }
+      });
+    }
+
+    // 배달앱 수익성 (매출 / 앱 수수료 / 실부담 배달비)
+    const ctx3 = document.getElementById('deliveryChart').getContext('2d');
+    const delLabels = ['배민','땡겨요'];
+    const delData = {
+      labels:delLabels,
+      datasets:[
+        { label:'매출', data:[m.baeminSales||0, m.ddangSales||0], backgroundColor:'#22c55e' },
+        { label:'앱 수수료', data:[m.baeminCommission, m.ddangCommission], backgroundColor:'#ef4444' },
+        { label:'실부담 배달비', data:[m.baeminDeliveryCost, m.ddangDeliveryCost], backgroundColor:'#3b82f6' }
+      ]
+    };
+    if(deliveryChart){ deliveryChart.data = delData; deliveryChart.update(); }
+    else {
+      deliveryChart = new Chart(ctx3, {
+        type:'bar',
+        data:delData,
+        options:{
+          responsive:true,
+          plugins:{ legend:{labels:{color:'#9ca3af'}}, tooltip:{ callbacks:{ label:ctx=>ctx.dataset.label+': '+fmtWon(ctx.parsed.y) } } },
+          scales:{ y:{ ticks:{ color:'#9ca3af', callback:v=>v>=1000000 ? (v/1000000)+'M' : (v/1000)+'k' }, grid:{color:'#111827'} }, x:{ ticks:{color:'#9ca3af'}, grid:{display:false} } }
+        }
+      });
+    }
+  }
+
+  function updateAll(){
+    const m = compute();
+    renderMetrics(m);
+    renderInsight(m);
+    renderCharts(m);
+  }
+
+  // 탭 전환 처리
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      const id = btn.getAttribute('data-tab');
+      document.getElementById(id).classList.add('active');
+    });
+  });
+
+  updateAll();
+</script>
+</body>
+</html>

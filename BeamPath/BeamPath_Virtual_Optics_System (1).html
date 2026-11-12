@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>광학계 Fluence 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<style>
+  :root{
+    --bg:#10131c;
+    --panel:#181c28;
+    --panel2:#1f2433;
+    --ink:#eef0f6;
+    --muted:#8d94a8;
+    --outline:#070810;
+    --violet:#a074ff;
+    --violet-glow:#d6c4ff;
+    --amber:#f5a623;
+    --mirror:#c3cad9;
+    --scanner:#35d6c0;
+    --stage:#5b6377;
+    --good:#35d6c0;
+    --warn:#f5a623;
+    --danger:#ff6b7a;
+    --grid-dot: rgba(255,255,255,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Pretendard","JetBrains Mono",-apple-system,sans-serif;
+    min-height:100vh;
+    background-image: radial-gradient(var(--grid-dot) 1.4px, transparent 1.4px);
+    background-size: 26px 26px;
+  }
+  header{
+    padding:28px 32px 10px;
+  }
+  header h1{
+    margin:0;
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:-0.02em;
+  }
+  header p{
+    margin:6px 0 0;
+    color:var(--muted);
+    font-size:13px;
+  }
+  .mono{ font-family:"JetBrains Mono", monospace; }
+
+  .layout{
+    display:grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap:20px;
+    padding:12px 32px 40px;
+    align-items:start;
+  }
+  @media (max-width: 980px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .stage-panel{
+    background:linear-gradient(180deg,#141826,#0e1119);
+    border:2px solid var(--outline);
+    border-radius:16px;
+    padding:14px;
+    position:sticky;
+    top:16px;
+  }
+  .stage-panel svg{ width:100%; height:auto; display:block; }
+
+  .card{
+    background:var(--panel);
+    border:2px solid var(--outline);
+    border-radius:14px;
+    padding:16px 18px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-size:13px;
+    margin:0 0 12px;
+    color:var(--muted);
+    font-weight:700;
+    letter-spacing:0.03em;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .dot{ width:8px;height:8px;border-radius:50%; display:inline-block; }
+
+  .row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .row label{ font-size:13px; color:var(--ink); flex:1; }
+  .row input[type=number]{
+    width:78px;
+    background:var(--panel2);
+    border:1.5px solid #2c3245;
+    border-radius:8px;
+    color:var(--ink);
+    padding:6px 8px;
+    font-family:"JetBrains Mono",monospace;
+    font-size:13px;
+    text-align:right;
+  }
+  .row input[type=range]{
+    flex:2;
+    accent-color: var(--violet);
+  }
+  .unit{ color:var(--muted); font-size:12px; width:34px; }
+
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:7px 0;
+    border-bottom:1px solid #262b3a;
+  }
+  .toggle-row:last-child{ border-bottom:none; }
+  .toggle-row span{ font-size:13px; }
+  .switch{
+    position:relative;
+    width:38px; height:22px;
+    background:#2c3245;
+    border-radius:20px;
+    cursor:pointer;
+    transition:background .15s;
+    flex-shrink:0;
+  }
+  .switch.on{ background:var(--violet); }
+  .switch::after{
+    content:"";
+    position:absolute; top:2px; left:2px;
+    width:18px; height:18px;
+    background:#fff;
+    border-radius:50%;
+    transition:left .15s;
+  }
+  .switch.on::after{ left:18px; }
+
+  .slider-mini{ display:flex; align-items:center; gap:8px; margin-top:6px; }
+  .slider-mini input[type=range]{ flex:1; accent-color:var(--amber); }
+  .slider-mini .val{ font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--muted); width:38px; text-align:right; }
+
+  .result-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+  }
+  .result-box{
+    background:var(--panel2);
+    border-radius:10px;
+    padding:12px;
+  }
+  .result-box .k{ font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .result-box .v{ font-family:"JetBrains Mono",monospace; font-size:19px; font-weight:700; color:var(--violet-glow); }
+  .result-box .v small{ font-size:12px; color:var(--muted); font-weight:400; }
+
+  .target-box{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px dashed #2c3245;
+  }
+  .target-status{
+    margin-top:10px;
+    font-size:13px;
+    padding:10px 12px;
+    border-radius:8px;
+    background:#141826;
+    line-height:1.5;
+  }
+  .target-status.ok{ color:var(--good); }
+  .target-status.warn{ color:var(--warn); }
+  .target-status.bad{ color:var(--danger); }
+
+  .note{
+    font-size:11.5px;
+    color:var(--muted);
+    line-height:1.5;
+    margin-top:8px;
+  }
+
+  .badge{
+    display:inline-block;
+    font-size:10.5px;
+    padding:2px 7px;
+    border-radius:20px;
+    background:#262b3a;
+    color:var(--muted);
+    margin-left:6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>광학계 Fluence &amp; Spot Size 계산기</h1>
+  <p>Laser → Attenuator/Shutter → M1–M5 → Scanner(dummy) → Stage &nbsp;|&nbsp; 355nm UV ns 레이저, Gaussian beam propagation 기반 · 논문 실측 캘리브레이션 (f = 255mm, w₀′ = 96μm)</p>
+</header>
+
+<div class="layout">
+
+  <!-- ============ ILLUSTRATION PANEL ============ -->
+  <div class="stage-panel">
+    <svg id="scene" viewBox="0 0 1400 640" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- ============ CONTROL PANEL ============ -->
+  <div class="controls">
+
+    <div class="card">
+      <h2><span class="dot" style="background:var(--violet)"></span>레이저 소스</h2>
+      <div class="row">
+        <label>파장 (λ)</label>
+        <span class="mono" style="color:var(--muted)">355 nm 고정</span>
+      </div>
+      <div class="row">
+        <label>평균 출력 P_avg</label>
+        <input type="number" id="pavg" value="3.5" step="0.1" min="0.1" max="20">
+        <span class="unit">W</span>
+      </div>
+      <div class="row">
+        <label>반복률 (rep rate)</label>
+        <input type="number" id="reprate" value="50" step="1" min="1" max="500">
+        <span class="unit">kHz</span>
+      </div>
+      <div class="row">
+        <label>펄스폭 (참고용)</label>
+        <input type="number" id="pulsewidth" value="17" step="1" min="1" max="200">
+        <span class="unit">ns</span>
+      </div>
+      <div class="row">
+        <label>M² (beam quality)</label>
+        <input type="number" id="m2" value="1.2" step="0.05" min="1" max="3">
+        <span class="unit"></span>
+      </div>
+      <div class="note">P_avg 3.5W = 최근 실측(저하됨), 5.0W = 신품 스펙. 필요시 직접 교체 입력.</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:var(--amber)"></span>컴포넌트 구성</h2>
+      <div class="toggle-row">
+        <span>Attenuator / Shutter</span>
+        <div class="switch on" data-toggle="attenuator"></div>
+      </div>
+      <div class="slider-mini">
+        <span class="unit">투과율</span>
+        <input type="range" id="att-t" min="0" max="100" value="80">
+        <span class="val mono" id="att-t-val">80%</span>
+      </div>
+      <div style="height:6px"></div>
+      <div class="toggle-row"><span>M1 미러</span><div class="switch on" data-toggle="m1"></div></div>
+      <div class="toggle-row"><span>M2 미러</span><div class="switch on" data-toggle="m2"></div></div>
+      <div class="toggle-row"><span>M3 미러</span><div class="switch on" data-toggle="m3"></div></div>
+      <div class="toggle-row"><span>M4 미러</span><div class="switch on" data-toggle="m4"></div></div>
+      <div class="toggle-row"><span>M5 미러</span><div class="switch on" data-toggle="m5"></div></div>
+      <div class="slider-mini">
+        <span class="unit">미러당 반사율</span>
+        <input type="range" id="mirror-r" min="80" max="100" value="98">
+        <span class="val mono" id="mirror-r-val">98%</span>
+      </div>
+      <div class="note">Scanner 내부(galvo 2개 + F-theta lens)는 현재 dummy 처리 — 광경로 스키마만 표현, 파워 손실은 반영하지 않음.</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:var(--scanner)"></span>Stage &amp; 초점</h2>
+      <div class="row">
+        <label>Stage 높이 (focal plane 기준 offset, z)</label>
+      </div>
+      <div class="slider-mini">
+        <input type="range" id="z-slider" min="-30" max="30" value="0" step="0.1" style="accent-color:var(--scanner)">
+        <span class="val mono" id="z-val">0.0 mm</span>
+      </div>
+      <div class="note">양수: focal plane보다 stage가 렌즈에서 멀어지는 방향(defocus 위쪽) / 음수: 반대 방향. 부호는 실측으로 맞춰 쓰면 됨.</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:#fff"></span>연출 옵션</h2>
+      <div class="row"><label>광경로 시각적 길이</label></div>
+      <div class="slider-mini">
+        <input type="range" id="path-scale" min="0.6" max="1.6" value="1" step="0.05">
+        <span class="val mono" id="path-scale-val">1.00×</span>
+      </div>
+      <div class="note">일러스트레이션 배치 간격만 조절 (물리량에는 영향 없음)</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot" style="background:var(--violet-glow)"></span>계산 결과</h2>
+      <div class="result-grid">
+        <div class="result-box">
+          <div class="k">Stage 도달 파워</div>
+          <div class="v" id="out-power">–</div>
+        </div>
+        <div class="result-box">
+          <div class="k">펄스 에너지</div>
+          <div class="v" id="out-energy">–</div>
+        </div>
+        <div class="result-box">
+          <div class="k">Spot 직경 (1/e²)</div>
+          <div class="v" id="out-spot">–</div>
+        </div>
+        <div class="result-box">
+          <div class="k">Peak Fluence</div>
+          <div class="v" id="out-fluence">–</div>
+        </div>
+      </div>
+
+      <div class="target-box">
+        <div class="row">
+          <label>목표 fluence</label>
+          <input type="number" id="target-f" placeholder="예: 110" step="1">
+          <span class="unit">mJ/cm²</span>
+        </div>
+        <div class="target-status" id="target-status">목표 fluence를 입력하면 필요한 stage 높이를 계산함.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===================== 물리 상수 & 캘리브레이션 ===================== */
+const LAMBDA_M = 355e-9;           // 355 nm 고정
+const W0_UM_CAL = 96;              // 논문 실측 기반 초점 spot 반경(1/e²) [μm], f=255mm F-theta lens
+
+/* ===================== 상태 ===================== */
+const state = {
+  pavg: 3.5, reprate: 50, pulsewidth: 17, m2: 1.2,
+  attenuatorOn: true, attT: 80,
+  mirrors: {m1:true, m2:true, m3:true, m4:true, m5:true},
+  mirrorR: 98,
+  z: 0,
+  pathScale: 1
+};
+
+/* ===================== 물리 계산 ===================== */
+function zR_m(){
+  const w0 = W0_UM_CAL * 1e-6;
+  return Math.PI * w0*w0 / (LAMBDA_M * state.m2);
+}
+function w_at_z_m(z_mm){
+  const w0 = W0_UM_CAL * 1e-6;
+  const z_m = z_mm * 1e-3;
+  const zr = zR_m();
+  return w0 * Math.sqrt(1 + (z_m/zr)*(z_m/zr));
+}
+function transmission(){
+  let T = 1;
+  if (state.attenuatorOn) T *= state.attT/100;
+  Object.keys(state.mirrors).forEach(k=>{
+    if (state.mirrors[k]) T *= state.mirrorR/100;
+  });
+  return T;
+}
+function Pstage_W(){ return state.pavg * transmission(); }
+function Epulse_J(){ return Pstage_W() / (state.reprate*1e3); }
+function fluence_mJcm2(z_mm){
+  const w_m = w_at_z_m(z_mm);
+  const w_cm = w_m * 100;
+  const area_cm2 = Math.PI * w_cm * w_cm;
+  const F_Jcm2 = 2*Epulse_J() / area_cm2;
+  return F_Jcm2 * 1000;
+}
+function requiredZ_mm(targetF_mJcm2){
+  const F_Jcm2 = targetF_mJcm2/1000;
+  const E = Epulse_J();
+  const w0_m = W0_UM_CAL*1e-6;
+  const w_needed_cm = Math.sqrt(2*E/(Math.PI*F_Jcm2));
+  const w_needed_m = w_needed_cm/100;
+  if (w_needed_m < w0_m*0.999) return null; // focus에서도 도달 불가 (target too high)
+  const ratio = w_needed_m/w0_m;
+  const z_m = zR_m() * Math.sqrt(Math.max(ratio*ratio-1,0));
+  return z_m*1000; // mm, ± 둘다 가능
+}
+
+/* ===================== SVG 씬 구성 ===================== */
+const svgNS = "http://www.w3.org/2000/svg";
+const scene = document.getElementById('scene');
+
+// 기본 노드 레이아웃 (x는 pathScale로 스케일)
+const baseNodes = [
+  {id:'laser',     bx:80,   y:330, w:110, h:64, label:'LASER', sub:'355nm', color:'var(--violet)', always:true},
+  {id:'att',       bx:250,  y:330, w:70,  h:54, label:'ATT', sub:'', color:'var(--amber)', toggleKey:'attenuatorOn'},
+  {id:'m1',        bx:390,  y:200, w:44,  h:44, label:'M1', sub:'', color:'var(--mirror)', toggleKey:'m1', mirror:true},
+  {id:'m2',        bx:530,  y:460, w:44,  h:44, label:'M2', sub:'', color:'var(--mirror)', toggleKey:'m2', mirror:true},
+  {id:'m3',        bx:670,  y:200, w:44,  h:44, label:'M3', sub:'', color:'var(--mirror)', toggleKey:'m3', mirror:true},
+  {id:'m4',        bx:810,  y:460, w:44,  h:44, label:'M4', sub:'', color:'var(--mirror)', toggleKey:'m4', mirror:true},
+  {id:'m5',        bx:950,  y:220, w:44,  h:44, label:'M5', sub:'', color:'var(--mirror)', toggleKey:'m5', mirror:true},
+  {id:'scanner',   bx:1090, y:230, w:130, h:90, label:'SCANNER', sub:'(dummy)', color:'var(--scanner)', always:true},
+];
+
+function nodeActive(n){
+  if (n.always) return true;
+  if (n.id === 'att') return state.attenuatorOn;
+  if (n.mirror) return state.mirrors[n.id];
+  return true;
+}
+
+function layoutNodes(){
+  const s = state.pathScale;
+  const originX = 80;
+  return baseNodes.map(n=>{
+    const x = originX + (n.bx-originX)*s;
+    return Object.assign({}, n, {x});
+  });
+}
+
+let animT = 0;
+let rafId = null;
+
+function buildScene(){
+  scene.innerHTML = '';
+
+  // defs
+  const defs = document.createElementNS(svgNS,'defs');
+  defs.innerHTML = `
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <radialGradient id="beamGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e6d9ff" stop-opacity="1"/>
+      <stop offset="45%" stop-color="#a074ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#a074ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stageGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6b7492"/>
+      <stop offset="100%" stop-color="#454b5c"/>
+    </linearGradient>
+  `;
+  scene.appendChild(defs);
+
+  const nodes = layoutNodes();
+  const activeNodes = nodes.filter(nodeActive);
+
+  // ---- 광경로 polyline (활성 노드들의 중심점 연결) ----
+  const pathPts = activeNodes.map(n => [n.x + n.w/2*0 + (n.id==='laser'? n.w: n.w/2), n.y + n.h/2]);
+  // laser는 오른쪽 끝에서 출발, 나머지는 중앙
+  const beamPts = activeNodes.map(n=>{
+    if(n.id==='laser') return [n.x+n.w, n.y+n.h/2];
+    return [n.x+n.w/2, n.y+n.h/2];
+  });
+
+  // scanner 이후 stage로 내려가는 hourglass 처리 (scanner는 always active)
+  const scannerNode = nodes.find(n=>n.id==='scanner');
+  const scannerOutX = scannerNode.x + scannerNode.w/2;
+  const scannerOutY = scannerNode.y + scannerNode.h;
+  const focalY = scannerOutY + 130; // 고정된 시각적 초점면 위치
+  const zPxPerMm = 2.4;
+  const stageY = focalY + state.z*zPxPerMm;
+  const stageX = scannerOutX;
+
+  // 실제 물리량 -> 시각적 spot half-width(px)
+  const w_um = w_at_z_m(state.z)*1e6;
+  const spotHalfPx = Math.max(3, Math.min(46, 3 + (w_um/ W0_UM_CAL - 1)*10));
+
+  // ================= 그리기 시작 =================
+  // 1) 광경로 (컴포넌트 사이 폴리라인)
+  let dAttr = 'M ' + beamPts.map(p=>p[0]+','+p[1]).join(' L ');
+  const beamPath = document.createElementNS(svgNS,'path');
+  beamPath.setAttribute('d', dAttr);
+  beamPath.setAttribute('fill','none');
+  beamPath.setAttribute('stroke','var(--violet)');
+  beamPath.setAttribute('stroke-width','4');
+  beamPath.setAttribute('stroke-linejoin','round');
+  beamPath.setAttribute('stroke-linecap','round');
+  beamPath.setAttribute('opacity','0.55');
+  beamPath.setAttribute('filter','url(#glow)');
+  scene.appendChild(beamPath);
+
+  // 2) scanner -> stage hourglass (converging/diverging beam)
+  const apertureHalf = 34;
+  const hg = document.createElementNS(svgNS,'path');
+  const d2 = `M ${scannerOutX-apertureHalf},${scannerOutY}
+              C ${scannerOutX-apertureHalf},${focalY-30} ${scannerOutX-4},${focalY-10} ${scannerOutX},${focalY}
+              C ${scannerOutX+4},${focalY-10} ${scannerOutX+apertureHalf},${focalY-30} ${scannerOutX+apertureHalf},${scannerOutY}
+              Z`;
+  hg.setAttribute('d', d2);
+  hg.setAttribute('fill','var(--violet)');
+  hg.setAttribute('opacity','0.14');
+  scene.appendChild(hg);
+
+  // focal plane -> stage 부분 (defocus로 인한 재발산 표현)
+  const hg2 = document.createElementNS(svgNS,'path');
+  const d3 = `M ${scannerOutX-4},${focalY-10}
+              Q ${scannerOutX},${focalY} ${scannerOutX-spotHalfPx},${stageY}
+              L ${scannerOutX+spotHalfPx},${stageY}
+              Q ${scannerOutX},${focalY} ${scannerOutX+4},${focalY-10}
+              Z`;
+  hg2.setAttribute('d', d3);
+  hg2.setAttribute('fill','var(--violet)');
+  hg2.setAttribute('opacity','0.28');
+  scene.appendChild(hg2);
+
+  // 초점면 표시선 (dashed)
+  const focalLine = document.createElementNS(svgNS,'line');
+  focalLine.setAttribute('x1', scannerOutX-90); focalLine.setAttribute('x2', scannerOutX+90);
+  focalLine.setAttribute('y1', focalY); focalLine.setAttribute('y2', focalY);
+  focalLine.setAttribute('stroke','#4b5164');
+  focalLine.setAttribute('stroke-width','2');
+  focalLine.setAttribute('stroke-dasharray','6 6');
+  scene.appendChild(focalLine);
+  const focalLabel = document.createElementNS(svgNS,'text');
+  focalLabel.setAttribute('x', scannerOutX+96); focalLabel.setAttribute('y', focalY+4);
+  focalLabel.setAttribute('fill','#4b5164'); focalLabel.setAttribute('font-size','11');
+  focalLabel.setAttribute('font-family','JetBrains Mono, monospace');
+  focalLabel.textContent = 'focal plane';
+  scene.appendChild(focalLabel);
+
+  // 3) 컴포넌트 노드들
+  nodes.forEach(n=>{
+    const active = nodeActive(n);
+    const g = document.createElementNS(svgNS,'g');
+    g.setAttribute('opacity', active? '1':'0.3');
+
+    const rect = document.createElementNS(svgNS,'rect');
+    rect.setAttribute('x', n.x); rect.setAttribute('y', n.y);
+    rect.setAttribute('width', n.w); rect.setAttribute('height', n.h);
+    rect.setAttribute('rx', n.mirror? 8 : 14);
+    rect.setAttribute('fill', active? n.color : '#3a4053');
+    rect.setAttribute('stroke','var(--outline)');
+    rect.setAttribute('stroke-width', n.mirror? 3.5 : 4.5);
+    if(n.mirror) rect.setAttribute('transform', `rotate(45 ${n.x+n.w/2} ${n.y+n.h/2})`);
+    g.appendChild(rect);
+
+    if(!n.mirror){
+      const t = document.createElementNS(svgNS,'text');
+      t.setAttribute('x', n.x+n.w/2); t.setAttribute('y', n.y+n.h/2 - (n.sub? 2 : -4));
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-family','Pretendard, sans-serif');
+      t.setAttribute('font-weight','800');
+      t.setAttribute('font-size', n.id==='laser'||n.id==='scanner' ? '15':'12');
+      t.setAttribute('fill','#12141c');
+      t.textContent = n.label;
+      g.appendChild(t);
+      if(n.sub){
+        const t2 = document.createElementNS(svgNS,'text');
+        t2.setAttribute('x', n.x+n.w/2); t2.setAttribute('y', n.y+n.h/2+16);
+        t2.setAttribute('text-anchor','middle');
+        t2.setAttribute('font-family','JetBrains Mono, monospace');
+        t2.setAttribute('font-size','10.5');
+        t2.setAttribute('fill','#12141c');
+        t2.setAttribute('opacity','0.75');
+        t2.textContent = n.sub;
+        g.appendChild(t2);
+      }
+    } else {
+      const t = document.createElementNS(svgNS,'text');
+      t.setAttribute('x', n.x+n.w/2); t.setAttribute('y', n.y+n.h+18);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-family','JetBrains Mono, monospace');
+      t.setAttribute('font-size','11');
+      t.setAttribute('fill', active? '#c3cad9':'#5a6178');
+      t.textContent = n.label;
+      g.appendChild(t);
+    }
+    scene.appendChild(g);
+  });
+
+  // 4) Scanner 내부 dummy 표시 (점선 galvo 아이콘)
+  const dummyText = document.createElementNS(svgNS,'text');
+  dummyText.setAttribute('x', scannerNode.x+scannerNode.w/2);
+  dummyText.setAttribute('y', scannerNode.y+scannerNode.h+20);
+  dummyText.setAttribute('text-anchor','middle');
+  dummyText.setAttribute('font-family','JetBrains Mono, monospace');
+  dummyText.setAttribute('font-size','10.5');
+  dummyText.setAttribute('fill','var(--muted)');
+  dummyText.textContent = 'galvo ×2 + F-theta (dummy)';
+  scene.appendChild(dummyText);
+
+  // 5) Stage 플랫폼
+  const stageW = 260, stageH = 26;
+  const stageRect = document.createElementNS(svgNS,'rect');
+  stageRect.setAttribute('x', stageX-stageW/2); stageRect.setAttribute('y', stageY);
+  stageRect.setAttribute('width', stageW); stageRect.setAttribute('height', stageH);
+  stageRect.setAttribute('rx', 6);
+  stageRect.setAttribute('fill','url(#stageGrad)');
+  stageRect.setAttribute('stroke','var(--outline)');
+  stageRect.setAttribute('stroke-width','4.5');
+  scene.appendChild(stageRect);
+  // stage legs
+  [stageX-stageW/2+22, stageX+stageW/2-22].forEach(lx=>{
+    const leg = document.createElementNS(svgNS,'rect');
+    leg.setAttribute('x', lx-6); leg.setAttribute('y', stageY+stageH);
+    leg.setAttribute('width', 12); leg.setAttribute('height', Math.max(8, 640-40-(stageY+stageH)));
+    leg.setAttribute('fill','#33384a');
+    leg.setAttribute('stroke','var(--outline)'); leg.setAttribute('stroke-width','3');
+    scene.appendChild(leg);
+  });
+  const stageLabel = document.createElementNS(svgNS,'text');
+  stageLabel.setAttribute('x', stageX); stageLabel.setAttribute('y', stageY+stageH+ Math.max(8,640-40-(stageY+stageH)) +20 );
+  stageLabel.setAttribute('text-anchor','middle');
+  stageLabel.setAttribute('font-family','Pretendard, sans-serif');
+  stageLabel.setAttribute('font-weight','700');
+  stageLabel.setAttribute('font-size','13');
+  stageLabel.setAttribute('fill','var(--muted)');
+  stageLabel.textContent = 'STAGE';
+  scene.appendChild(stageLabel);
+
+  // 6) Spot on stage (fluence 시각화)
+  const spot = document.createElementNS(svgNS,'circle');
+  spot.setAttribute('cx', stageX); spot.setAttribute('cy', stageY+2);
+  spot.setAttribute('rx', spotHalfPx);
+  spot.setAttribute('r', spotHalfPx);
+  spot.setAttribute('fill','url(#beamGlow)');
+  scene.appendChild(spot);
+
+  // 7) 애니메이션용 pulse dot + guide path 정보 저장
+  scene._beamPts = beamPts;
+  scene._hgTop = {x1:scannerOutX-apertureHalf,y1:scannerOutY,x2:scannerOutX,y2:focalY};
+  scene._hgBottom = {x1:scannerOutX,y1:focalY,x2:stageX,y2:stageY+2};
+
+  const pulse = document.createElementNS(svgNS,'circle');
+  pulse.setAttribute('id','pulseDot');
+  pulse.setAttribute('r','7');
+  pulse.setAttribute('fill','#f4eeff');
+  pulse.setAttribute('filter','url(#glow)');
+  scene.appendChild(pulse);
+}
+
+/* ===================== 펄스 애니메이션 (JS 기반, 세그먼트 따라 이동) ===================== */
+function getFullPath(){
+  const pts = scene._beamPts.slice();
+  // scanner 중심에서 hourglass 경로로 이어붙임
+  const top = scene._hgTop, bot = scene._hgBottom;
+  pts.push([top.x1, top.y1]);
+  pts.push([top.x2, top.y2]);
+  pts.push([bot.x2, bot.y2]);
+  return pts;
+}
+function segLen(a,b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+
+function animate(ts){
+  if(!scene._beamPts){ rafId = requestAnimationFrame(animate); return; }
+  const pts = getFullPath();
+  let total = 0;
+  const lens = [];
+  for(let i=0;i<pts.length-1;i++){ const l = segLen(pts[i],pts[i+1]); lens.push(l); total += l; }
+  const speed = 260; // px/sec
+  const dur = Math.max(total/speed, 0.6);
+  const t = ( (ts/1000) % dur ) / dur;
+  let target = t*total;
+  let seg = 0;
+  while(seg < lens.length && target > lens[seg]){ target -= lens[seg]; seg++; }
+  if(seg >= lens.length) seg = lens.length-1;
+  const a = pts[seg], b = pts[seg+1] || pts[seg];
+  const segT = lens[seg] ? target/lens[seg] : 0;
+  const x = a[0] + (b[0]-a[0])*segT;
+  const y = a[1] + (b[1]-a[1])*segT;
+  const dot = document.getElementById('pulseDot');
+  if(dot){ dot.setAttribute('cx', x); dot.setAttribute('cy', y); }
+  rafId = requestAnimationFrame(animate);
+}
+
+/* ===================== UI 바인딩 ===================== */
+function fmt(n, digits){ return Number(n).toLocaleString('en-US', {minimumFractionDigits:digits, maximumFractionDigits:digits}); }
+
+function updateOutputs(){
+  const P = Pstage_W();
+  const E = Epulse_J();
+  const w_um = w_at_z_m(state.z)*1e6;
+  const F = fluence_mJcm2(state.z);
+
+  document.getElementById('out-power').innerHTML = fmt(P,2) + ' <small>W</small>';
+  document.getElementById('out-energy').innerHTML = fmt(E*1e6,2) + ' <small>µJ</small>';
+  document.getElementById('out-spot').innerHTML = fmt(w_um*2,1) + ' <small>µm</small>';
+  document.getElementById('out-fluence').innerHTML = fmt(F,1) + ' <small>mJ/cm²</small>';
+
+  document.getElementById('z-val').textContent = fmt(state.z,1) + ' mm';
+
+  const targetInput = document.getElementById('target-f');
+  const statusEl = document.getElementById('target-status');
+  const tv = parseFloat(targetInput.value);
+  if(!isNaN(tv) && tv > 0){
+    const req = requiredZ_mm(tv);
+    if(req === null){
+      statusEl.className = 'target-status bad';
+      statusEl.textContent = `focal plane(z=0)에서도 최대 ${fmt(fluence_mJcm2(0),1)} mJ/cm²까지만 가능 — 목표값이 현재 파워로는 도달 불가. Attenuator 투과율을 올리거나 파워를 확인할 것.`;
+    } else {
+      const cur = state.z;
+      const diff = Math.abs(cur) - Math.abs(req);
+      statusEl.className = 'target-status ok';
+      statusEl.innerHTML = `목표 ${fmt(tv,1)} mJ/cm² 달성하려면 stage 높이 <b>z = ±${fmt(req,2)} mm</b> (focal plane 기준). 현재 z=${fmt(cur,1)}mm 에서의 fluence는 ${fmt(F,1)} mJ/cm².`;
+    }
+  } else {
+    statusEl.className = 'target-status';
+    statusEl.textContent = '목표 fluence를 입력하면 필요한 stage 높이를 계산함.';
+  }
+}
+
+function render(){
+  buildScene();
+  updateOutputs();
+}
+
+// input bindings
+document.getElementById('pavg').addEventListener('input', e=>{ state.pavg = parseFloat(e.target.value)||0; render(); });
+document.getElementById('reprate').addEventListener('input', e=>{ state.reprate = parseFloat(e.target.value)||1; render(); });
+document.getElementById('pulsewidth').addEventListener('input', e=>{ state.pulsewidth = parseFloat(e.target.value)||1; });
+document.getElementById('m2').addEventListener('input', e=>{ state.m2 = parseFloat(e.target.value)||1.2; render(); });
+
+document.getElementById('att-t').addEventListener('input', e=>{
+  state.attT = parseInt(e.target.value);
+  document.getElementById('att-t-val').textContent = state.attT+'%';
+  render();
+});
+document.getElementById('mirror-r').addEventListener('input', e=>{
+  state.mirrorR = parseInt(e.target.value);
+  document.getElementById('mirror-r-val').textContent = state.mirrorR+'%';
+  render();
+});
+document.getElementById('z-slider').addEventListener('input', e=>{
+  state.z = parseFloat(e.target.value);
+  render();
+});
+document.getElementById('path-scale').addEventListener('input', e=>{
+  state.pathScale = parseFloat(e.target.value);
+  document.getElementById('path-scale-val').textContent = state.pathScale.toFixed(2)+'×';
+  render();
+});
+document.getElementById('target-f').addEventListener('input', updateOutputs);
+
+document.querySelectorAll('.switch').forEach(sw=>{
+  sw.addEventListener('click', ()=>{
+    const key = sw.getAttribute('data-toggle');
+    sw.classList.toggle('on');
+    if(key==='attenuator') state.attenuatorOn = sw.classList.contains('on');
+    else state.mirrors[key] = sw.classList.contains('on');
+    render();
+  });
+});
+
+render();
+rafId = requestAnimationFrame(animate);
+</script>
+</body>
+</html>

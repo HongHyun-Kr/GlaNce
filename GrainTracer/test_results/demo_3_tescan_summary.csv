@@ -1,0 +1,31 @@
+﻿Section,Item,Value,Unit
+Sample,Label,demo_3_tescan,
+Sample,File,demo_3_tescan.png,
+Sample,Image size,1800 × 1650,px
+Sample,Pixel size,4,nm/px
+Sample,Scale source,Scale bar line 250 px = 1 µm → 4.000 nm/px. Set Bar to the value printed on the image.,
+Sample,Analysed area (ROI),7.2 × 5.952,µm
+Results,Grains counted,124,
+Results,Mean ECD,0.561,µm
+Results,Standard deviation,0.144,µm
+Results,D10,0.369,µm
+Results,D50 (median),0.577,µm
+Results,D90,0.726,µm
+Results,Area-weighted ECD,0.623,µm
+Results,Mean aspect ratio,2.155,
+Results,Linear intercept Lx,0.403,µm
+Results,Linear intercept Ly,0.332,µm
+Results,Lx / Ly,1.214,
+Analysis parameters,Boundary type,Line,
+Analysis parameters,Boundary polarity,dark,
+Analysis parameters,Working scale,1,× (1 = full resolution)
+Analysis parameters,Line width σ,4.7,nm
+Analysis parameters,Minimum line length,64,nm
+Analysis parameters,Threshold high,0.5,
+Analysis parameters,Threshold low,0.18,
+Analysis parameters,Split depth h,8,nm
+Analysis parameters,Weak-boundary merge,0.15,
+Analysis parameters,Minimum ECD,80,nm
+Analysis parameters,Exclude grains touching ROI edge,Yes,
+Analysis parameters,"ROI (x0, y0, x1, y1)","0, 0, 1800, 1488",px
+Analysis parameters,Manual edits,0,

@@ -1,0 +1,27 @@
+﻿metric,value
+N_grains,104
+mean_ECD_um,0.38205231090842395
+sd_ECD_um,0.10912506389328772
+D10_um,0.2556129226447581
+D50_um,0.3714071247214999
+D90_um,0.5088361896458837
+area_weighted_ECD_um,0.44365305783194336
+mean_aspect_ratio,1.583233846800088
+intercept_Lx_um,0.28548026306335644
+intercept_Ly_um,0.27614099926780794
+Lx_over_Ly,1.033820634459612
+file,demo_2_fei.png
+pixel_nm,2.998500749625187
+working_scale,2
+gb_type,contrast
+polarity,bright
+line_sigma_px,4.58
+line_filter_px,28
+thr_high,0.4
+thr_low,0.15
+seed_h_px,7.5
+merge_weak,0.12
+min_ecd_nm,80
+exclude_edge,true
+roi_px,0 0 1600 1188
+manual_edits,0

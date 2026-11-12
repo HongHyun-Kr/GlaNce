@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCANLAB 빔 경로 뷰어</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#14151a; --sub:#6b7280; --line:#e6e7eb; --line-strong:#d2d4da;
+    --accent:#7c3aed; --panel:#fafafa; --warn:#b45309;
+    --mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+    --sans: -apple-system, "Segoe UI", "Pretendard", "Malgun Gothic", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); display:flex; justify-content:center; padding:24px 14px 60px; }
+  .app{ width:100%; max-width:960px; }
+  header{ margin-bottom:14px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;}
+  header h1{ font-size:16px; font-weight:700; letter-spacing:-0.01em; margin:0 0 4px; }
+  header p{ margin:0; font-size:12px; color:var(--sub); font-family:var(--mono); line-height:1.6; }
+  .fileBox{ display:flex; align-items:center; gap:8px; }
+  .fileBtn{
+    font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;
+    border:1px dashed var(--line-strong); background:#fff; color:var(--ink);
+    padding:8px 12px; border-radius:4px;
+  }
+  .fileBtn:hover{ background:var(--panel); }
+  #fileInput{ display:none; }
+  .modeTag{ font-family:var(--mono); font-size:10.5px; padding:3px 7px; border-radius:3px; background:var(--accent-soft,#efe7fd); color:var(--accent); display:inline-block; }
+
+  .stage{ position:relative; width:100%; aspect-ratio:1/1; max-width:760px; margin:14px auto 0; border:1px solid var(--line); border-radius:2px; background:#fff; overflow:hidden; touch-action:none; }
+  canvas{ position:absolute; top:0; left:0; width:100%; height:100%; }
+  #overlay{ pointer-events:none; }
+  .interact{ position:absolute; top:0; left:0; width:100%; height:100%; cursor:grab; }
+  .interact.dragging{ cursor:grabbing; }
+
+  .hud{ display:grid; grid-template-columns:repeat(6,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:12px auto 0; max-width:760px; font-family:var(--mono); font-size:11px; }
+  .hud div{ background:var(--panel); padding:8px 9px; }
+  .hud .k{ color:var(--sub); font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+  .hud .v{ font-weight:600; }
+
+  .controls{ max-width:760px; margin:12px auto 0; display:flex; flex-direction:column; gap:9px; }
+  .row{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  button{ font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--line-strong); background:#fff; color:var(--ink); padding:6px 12px; border-radius:3px; transition:background .12s; }
+  button:hover{ background:var(--panel); }
+  button.primary{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  button.primary:hover{ background:#2b2c33; }
+  button.ghost{ border-color:transparent; color:var(--sub); padding:6px 8px; }
+  input[type=range]{ -webkit-appearance:none; flex:1; height:3px; background:var(--line-strong); border-radius:2px; outline:none; min-width:100px;}
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--accent); cursor:pointer; border:2px solid #fff; box-shadow:0 0 0 1px var(--accent); }
+  .label{ font-family:var(--mono); font-size:10.5px; color:var(--sub); white-space:nowrap; min-width:70px; }
+  .rate-val{ font-family:var(--mono); font-size:11px; min-width:52px; text-align:right; }
+  .checkline{ display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--sub); }
+
+  .legend{ max-width:760px; margin:14px auto 0; font-family:var(--mono); font-size:11px; color:var(--sub); }
+  .grad{ height:8px; border-radius:2px; margin:6px 0 4px; background:linear-gradient(90deg,#2563eb,#0ea5e9,#f59e0b); }
+  .grad-labels{ display:flex; justify-content:space-between; }
+  .note{ margin-top:10px; font-size:11px; color:var(--sub); line-height:1.7; }
+  .note b{ color:var(--ink); }
+  .swatch{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:5px; }
+  .warnBox{ max-width:760px; margin:12px auto 0; font-family:var(--mono); font-size:10.5px; color:var(--warn); background:#fffbeb; border:1px solid #fde68a; border-radius:4px; padding:8px 10px; display:none; white-space:pre-wrap; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div>
+      <h1>SCANLAB 빔 경로 뷰어</h1>
+      <p id="src-info">기본 로드: Rasterscan_I0340_N800_260429.m</p>
+    </div>
+    <div class="fileBox">
+      <span class="modeTag" id="modeTag">polygon</span>
+      <label class="fileBtn" for="fileInput">.m 파일 불러오기</label>
+      <input type="file" id="fileInput" accept=".m,.txt">
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="base"></canvas>
+    <canvas id="overlay"></canvas>
+    <div class="interact" id="interact"></div>
+  </div>
+
+  <div class="hud">
+    <div><div class="k">cell</div><div class="v" id="hud-cell">–</div></div>
+    <div><div class="k">X (mm)</div><div class="v" id="hud-x">–</div></div>
+    <div><div class="k">Y (mm)</div><div class="v" id="hud-y">–</div></div>
+    <div><div class="k">speed</div><div class="v" id="hud-speed">–</div></div>
+    <div><div class="k">elapsed / total</div><div class="v" id="hud-time">–</div></div>
+    <div><div class="k">zoom</div><div class="v" id="hud-zoom">1.0×</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <button class="primary" id="btn-play">재생</button>
+      <button id="btn-reset">처음으로</button>
+      <button id="btn-prev">◀ 이전 cell</button>
+      <button id="btn-next">다음 cell ▶</button>
+      <div class="checkline">
+        <input type="checkbox" id="chk-jump" checked><label for="chk-jump">점프 표시</label>
+      </div>
+      <div class="checkline">
+        <input type="checkbox" id="chk-autostop"><label for="chk-autostop">cell 전환마다 자동정지</label>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">재생 배속</span>
+      <input type="range" id="rate" min="0" max="1000" value="425" step="1">
+      <span class="rate-val" id="rate-val">1.0×</span>
+    </div>
+    <div class="row">
+      <span class="label">스크럽</span>
+      <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+    </div>
+    <div class="row">
+      <span class="label">확대/이동</span>
+      <button class="ghost" id="btn-zoomout">－</button>
+      <button class="ghost" id="btn-zoomin">＋</button>
+      <button id="btn-fitcell">현재 cell로 확대</button>
+      <button id="btn-fitall">전체 보기</button>
+      <span class="label" style="min-width:auto; color:var(--sub);">휠=확대, 드래그=이동</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div>cell 색상 = scan speed 매핑</div>
+    <div class="grad"></div>
+    <div class="grad-labels"><span id="leg-min">–</span><span id="leg-max">–</span></div>
+    <div class="note">
+      <span class="swatch" style="background:#0ea5e9"></span>실선/채움 = marking(조사) 구간 &nbsp;·&nbsp;
+      <span class="swatch" style="background:repeating-linear-gradient(90deg,#c9803b 0 4px,transparent 4px 7px)"></span>점선 = 논마킹 점프(JumpSpeed)<br>
+      <span id="kind-note">polygon 타입: group_setting.m + polygon_setting.m 로직을 그대로 재현한 정확한 지그재그 경로.</span>
+    </div>
+  </div>
+
+  <div class="warnBox" id="warnBox"></div>
+
+</div>
+
+<script>
+(function(){
+
+  // ============================================================
+  // 1. mini-MATLAB 프리앰블 인터프리터 (변수 할당부만 실행, for-loop 진입 전 정지)
+  // ============================================================
+  function mkScalar(v){ return {rows:1,cols:1,data:[[v]]}; }
+  function mkRow(arr){ return {rows:1,cols:arr.length,data:[arr.slice()]}; }
+  function isScalar(m){ return m.rows===1 && m.cols===1; }
+  function isStrCell(x){ return typeof x==='string'; }
+  function transpose(m){ const d=[]; for(let c=0;c<m.cols;c++){ const row=[]; for(let r=0;r<m.rows;r++) row.push(m.data[r][c]); d.push(row);} return {rows:m.cols,cols:m.rows,data:d}; }
+  function repmatFn(m,mm,nn){ const R=m.rows*mm,C=m.cols*nn; const d=[]; for(let r=0;r<R;r++){const row=[];for(let c=0;c<C;c++)row.push(m.data[r%m.rows][c%m.cols]); d.push(row);} return {rows:R,cols:C,data:d}; }
+  function onesFn(r,c,val){ const d=[]; for(let i=0;i<r;i++){const row=[];for(let j=0;j<c;j++)row.push(val===undefined?1:val); d.push(row);} return {rows:r,cols:c,data:d}; }
+  function colonFn(a,step,b){ const arr=[]; step=(step===null||step===undefined)?1:step;
+    if(step>0){ for(let v=a; v<=b+1e-9; v+=step) arr.push(Math.round(v*1e6)/1e6); }
+    else if(step<0){ for(let v=a; v>=b-1e-9; v+=step) arr.push(Math.round(v*1e6)/1e6); }
+    return mkRow(arr); }
+  function lengthFn(m){ return mkScalar(Math.max(m.rows,m.cols)); }
+  function elementwise(m,fn){ return {rows:m.rows,cols:m.cols,data:m.data.map(row=>row.map(fn))}; }
+  function broadcastBinOp(a,b,fn){
+    if(isScalar(a)&&!isScalar(b)) return elementwise(b,x=>fn(a.data[0][0],x));
+    if(isScalar(b)&&!isScalar(a)) return elementwise(a,x=>fn(x,b.data[0][0]));
+    if(isScalar(a)&&isScalar(b)) return mkScalar(fn(a.data[0][0],b.data[0][0]));
+    const R=Math.max(a.rows,b.rows), C=Math.max(a.cols,b.cols); const d=[];
+    for(let r=0;r<R;r++){ const row=[]; for(let c=0;c<C;c++){
+      const av=a.data[a.rows===1?0:r][a.cols===1?0:c]; const bv=b.data[b.rows===1?0:r][b.cols===1?0:c];
+      row.push(fn(av,bv)); } d.push(row); }
+    return {rows:R,cols:C,data:d};
+  }
+  function linIndex(m,g){ const idx0=g-1; const R=m.rows; const col=Math.floor(idx0/R); const row=idx0%R; return m.data[row][col]; }
+  function linIndexSet(m,g,val){ const idx0=g-1; const R=m.rows; const col=Math.floor(idx0/R); const row=idx0%R; m.data[row][col]=val; }
+
+  function tokenize(line){
+    const toks=[]; let i=0; const N=line.length;
+    while(i<N){
+      const ch=line[i];
+      if(/\s/.test(ch)){ i++; continue; }
+      if(ch==="'"){
+        const prev=toks[toks.length-1];
+        const isTranspose = prev && ((prev.t==='id')||(prev.t==='num')||(prev.t==='op'&&(prev.v===')'||prev.v===']'||prev.v==="'")));
+        if(isTranspose){ toks.push({t:'op',v:"'"}); i++; continue; }
+        let j=i+1,s=''; while(j<N && line[j]!=="'"){ s+=line[j]; j++; }
+        toks.push({t:'str',v:s}); i=j+1; continue;
+      }
+      if(/[0-9]/.test(ch) || (ch==='.'&&/[0-9]/.test(line[i+1]||''))){
+        let j=i,s=''; while(j<N && /[0-9.]/.test(line[j])){ s+=line[j]; j++; }
+        if(line[j]==='e'||line[j]==='E'){ s+=line[j]; j++; if(line[j]==='+'||line[j]==='-'){s+=line[j];j++;} while(j<N&&/[0-9]/.test(line[j])){s+=line[j];j++;} }
+        toks.push({t:'num',v:parseFloat(s)}); i=j; continue;
+      }
+      if(/[A-Za-z_]/.test(ch)){ let j=i,s=''; while(j<N&&/[A-Za-z0-9_]/.test(line[j])){s+=line[j];j++;} toks.push({t:'id',v:s}); i=j; continue; }
+      const two=line.slice(i,i+2);
+      if(['==','~=','<=','>=','.*','./'].includes(two)){ toks.push({t:'op',v:two}); i+=2; continue; }
+      if('()[],:+-*/=<>\''.includes(ch)){ toks.push({t:'op',v:ch}); i++; continue; }
+      i++;
+    }
+    return toks;
+  }
+
+  function parseExprTokens(toks){
+    let p=0;
+    function peek(){ return toks[p]; }
+    function eat(v){ const t=toks[p]; if(!t) throw new Error('unexpected end'); if(v && t.v!==v) throw new Error('expected '+v+' got '+t.v); p++; return t; }
+    function parseExpr(){ return parseColon(); }
+    function parseColon(){
+      let a=parseAdd();
+      if(peek() && peek().t==='op' && peek().v===':'){
+        eat(':'); let b=parseAdd();
+        if(peek() && peek().t==='op' && peek().v===':'){ eat(':'); let c=parseAdd(); return {type:'range',a,step:b,b:c}; }
+        return {type:'range',a,step:null,b};
+      }
+      return a;
+    }
+    function parseAdd(){ let node=parseMul(); while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){ const op=eat().v; const r=parseMul(); node={type:'binop',op,l:node,r}; } return node; }
+    function parseMul(){ let node=parseCompare(); while(peek()&&peek().t==='op'&&['*','/','.*','./'].includes(peek().v)){ const op=eat().v; const r=parseCompare(); node={type:'binop',op:op.replace('.',''),l:node,r}; } return node; }
+    function parseCompare(){ let node=parseUnary(); while(peek()&&peek().t==='op'&&['==','~=','<','>','<=','>='].includes(peek().v)){ const op=eat().v; const r=parseUnary(); node={type:'binop',op,l:node,r}; } return node; }
+    function parseUnary(){ if(peek()&&peek().t==='op'&&peek().v==='-'){ eat('-'); return {type:'unary',op:'-',e:parseUnary()}; } if(peek()&&peek().t==='op'&&peek().v==='+'){ eat('+'); return parseUnary(); } return parsePostfix(); }
+    function parsePostfix(){
+      let node=parsePrimary();
+      for(;;){
+        if(peek()&&peek().t==='op'&&peek().v==="'"){ eat("'"); node={type:'transpose',e:node}; continue; }
+        if(peek()&&peek().t==='op'&&peek().v==='('){
+          eat('('); const args=[];
+          if(!(peek()&&peek().t==='op'&&peek().v===')')){ args.push(parseExpr()); while(peek()&&peek().t==='op'&&peek().v===','){ eat(','); args.push(parseExpr()); } }
+          eat(')'); node={type:'call',target:node,args}; continue;
+        }
+        break;
+      }
+      return node;
+    }
+    function parsePrimary(){
+      const t=peek(); if(!t) throw new Error('unexpected end in primary');
+      if(t.t==='num'){ eat(); return {type:'num',v:t.v}; }
+      if(t.t==='str'){ eat(); return {type:'str',v:t.v}; }
+      if(t.t==='id'){ eat(); return {type:'ident',name:t.v}; }
+      if(t.t==='op'&&t.v==='('){ eat('('); const e=parseExpr(); eat(')'); return e; }
+      if(t.t==='op'&&t.v==='['){
+        eat('['); const elems=[];
+        if(!(peek()&&peek().t==='op'&&peek().v===']')){
+          elems.push(parseExpr());
+          while(!(peek()&&peek().t==='op'&&peek().v===']')){
+            if(peek()&&peek().t==='op'&&peek().v===','){ eat(','); }
+            if(peek()&&peek().t==='op'&&peek().v===']') break;
+            elems.push(parseExpr());
+          }
+        }
+        eat(']'); return {type:'array',elems};
+      }
+      throw new Error('unexpected token '+JSON.stringify(t));
+    }
+    return parseExpr();
+  }
+
+  const FUNCS = new Set(['ones','zeros','repmat','length','round','rem','mod','find','abs','sqrt','fopen','fprintf','fclose']);
+  function evalNode(node, table, warnings){
+    switch(node.type){
+      case 'num': return mkScalar(node.v);
+      case 'str': return node.v.length<=1 ? mkScalar(node.v.length?node.v:'') : mkRow(node.v.split(''));
+      case 'ident': if(node.name in table) return table[node.name]; warnings.push('undefined var: '+node.name); return mkScalar(0);
+      case 'array': {
+        const parts=node.elems.map(e=>evalNode(e,table,warnings));
+        if(parts.length===0) return {rows:0,cols:0,data:[]};
+        const rows=parts[0].rows; const cols=parts.reduce((s,p)=>s+p.cols,0);
+        const d=[]; for(let r=0;r<rows;r++) d.push([]);
+        for(const p of parts) for(let r=0;r<rows;r++) d[r].push(...p.data[Math.min(r,p.rows-1)]);
+        return {rows,cols,data:d};
+      }
+      case 'range': {
+        const a=evalNode(node.a,table,warnings).data[0][0];
+        const step=node.step? evalNode(node.step,table,warnings).data[0][0] : null;
+        const b=evalNode(node.b,table,warnings).data[0][0];
+        return colonFn(a,step,b);
+      }
+      case 'unary': return elementwise(evalNode(node.e,table,warnings), x=>-x);
+      case 'transpose': return transpose(evalNode(node.e,table,warnings));
+      case 'binop': {
+        if(node.op==='*'){
+          const a=evalNode(node.l,table,warnings), b=evalNode(node.r,table,warnings);
+          if(isScalar(a)&&isStrCell(a.data[0][0])&&!isScalar(b)) return elementwise(b,()=>a.data[0][0]);
+          if(isScalar(b)&&isStrCell(b.data[0][0])&&!isScalar(a)) return elementwise(a,()=>b.data[0][0]);
+          return broadcastBinOp(a,b,(x,y)=>x*y);
+        }
+        const a=evalNode(node.l,table,warnings), b=evalNode(node.r,table,warnings);
+        const ops={'+':(x,y)=>x+y,'-':(x,y)=>x-y,'/':(x,y)=>x/y,'==':(x,y)=>x===y?1:0,'~=':(x,y)=>x!==y?1:0,'<':(x,y)=>x<y?1:0,'>':(x,y)=>x>y?1:0,'<=':(x,y)=>x<=y?1:0,'>=':(x,y)=>x>=y?1:0};
+        return broadcastBinOp(a,b,ops[node.op]);
+      }
+      case 'call': {
+        if(node.target.type==='ident'){
+          const name=node.target.name;
+          if(FUNCS.has(name)){
+            const args=node.args.map(a=>evalNode(a,table,warnings));
+            switch(name){
+              case 'ones': return onesFn(args[0].data[0][0], args[1]?args[1].data[0][0]:args[0].data[0][0], 1);
+              case 'zeros': return onesFn(args[0].data[0][0], args[1]?args[1].data[0][0]:args[0].data[0][0], 0);
+              case 'repmat': return repmatFn(args[0], args[1].data[0][0], args[2].data[0][0]);
+              case 'length': return lengthFn(args[0]);
+              case 'round': return elementwise(args[0], Math.round);
+              case 'rem': return broadcastBinOp(args[0],args[1],(x,y)=>x-y*Math.trunc(x/y));
+              case 'mod': return broadcastBinOp(args[0],args[1],(x,y)=>((x%y)+y)%y);
+              case 'abs': return elementwise(args[0], Math.abs);
+              case 'sqrt': return elementwise(args[0], Math.sqrt);
+              case 'find': return {special:'find', src:args[0]};
+              case 'fopen': return mkScalar(1);
+              case 'fprintf': return mkScalar(0);
+              case 'fclose': return mkScalar(0);
+            }
+          }
+          const m=table[name];
+          if(!m){ warnings.push('index of undefined var: '+name); return mkScalar(0); }
+          const idxArgs=node.args.map(a=>evalNode(a,table,warnings));
+          if(idxArgs.length===1){
+            const idxm=idxArgs[0];
+            if(isScalar(idxm)) return mkScalar(linIndex(m, idxm.data[0][0]));
+            const flatIdx=[]; idxm.data.forEach(row=>row.forEach(v=>flatIdx.push(v)));
+            return mkRow(flatIdx.map(g=>linIndex(m,g)));
+          }
+          return mkScalar(0);
+        }
+        return mkScalar(0);
+      }
+      default: throw new Error('unknown node '+node.type);
+    }
+  }
+
+  function stripComment(line){
+    let inStr=false;
+    for(let i=0;i<line.length;i++){ if(line[i]==="'") inStr=!inStr; if(line[i]==='%'&&!inStr) return line.slice(0,i); }
+    return line;
+  }
+
+  function runPreamble(src){
+    const table={}, warnings=[];
+    for(let rawLine of src.split('\n')){
+      const line=stripComment(rawLine).trim();
+      if(!line) continue;
+      if(/^for\b/.test(line)) break;
+      if(/^(function|switch|case|end|while|if|else|elseif)\b/.test(line)) continue;
+      for(const stmt of line.split(';').map(s=>s.trim()).filter(Boolean)){
+        try{
+          let m;
+          if((m=stmt.match(/^\[\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*\]\s*=\s*(.+)$/))){
+            const [,id1,id2,rhs]=m;
+            const res=evalNode(parseExprTokens(tokenize(rhs)), table, warnings);
+            if(res && res.special==='find'){
+              const s2=res.src; const rowIdx=[],colIdx=[];
+              for(let r=0;r<s2.rows;r++) for(let c=0;c<s2.cols;c++) if(s2.data[r][c]){ rowIdx.push(r+1); colIdx.push(c+1); }
+              table[id1]=mkRow(rowIdx.length?rowIdx:[0]); table[id2]=mkRow(colIdx.length?colIdx:[0]);
+            }
+            continue;
+          }
+          if((m=stmt.match(/^([A-Za-z_]\w*)\s*\(([^=]*)\)\s*=\s*(.+)$/)) && !FUNCS.has(m[1])){
+            const [,name,idxExpr,rhs]=m;
+            if(!(name in table)){ warnings.push('indexed-assign to undefined var '+name); continue; }
+            const idxVal=evalNode(parseExprTokens(tokenize(idxExpr)), table, warnings);
+            const rhsVal=evalNode(parseExprTokens(tokenize(rhs)), table, warnings);
+            const flatIdx=[]; idxVal.data.forEach(row=>row.forEach(v=>flatIdx.push(v)));
+            const flatVals=[]; rhsVal.data.forEach(row=>row.forEach(v=>flatVals.push(v)));
+            flatIdx.forEach((g,k)=>linIndexSet(table[name], g, flatVals[Math.min(k,flatVals.length-1)]));
+            continue;
+          }
+          if((m=stmt.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/))){
+            const [,name,rhs]=m;
+            const val=evalNode(parseExprTokens(tokenize(rhs)), table, warnings);
+            if(val && val.special){ warnings.push('unsupported bare find() for '+name); continue; }
+            table[name]=val; continue;
+          }
+        }catch(e){ warnings.push('parse fail: "'+stmt+'" :: '+e.message); }
+      }
+    }
+    return {table, warnings};
+  }
+
+  // ============================================================
+  // 2. 기하 생성 (group_setting.m / polygon_setting.m / Main_linescan.m 로직 재현)
+  // ============================================================
+  function gv(table,name,g,dflt){ if(!(name in table)) return dflt; return linIndex(table[name], g); }
+
+  function detectKind(table){
+    if('RN' in table && 'LL' in table && 'SL' in table) return 'rect';
+    if('LN' in table || 'PH' in table) return 'polygon';
+    return 'unknown';
+  }
+
+  function buildPolygonCells(table){
+    const GN=table.GN.data[0][0];
+    const hasLN='LN' in table;
+    const cells=[];
+    for(let g=1; g<=GN; g++){
+      const S=String(gv(table,'s',g,'R')), L=String(gv(table,'l',g,'D'));
+      const dsg=gv(table,'ds',g, gv(table,'SPx',g,1))/1000;
+      const dlg=gv(table,'dl',g, gv(table,'SPy',g,1))/1000;
+      let PWg=gv(table,'PW',g,1.2), PHg=gv(table,'PH',g,1.2), LNg;
+      if(hasLN){ LNg=gv(table,'LN',g,1); }
+      else { let E=Math.round((PHg*1000)/(gv(table,'dl',g,gv(table,'SPy',g,1)))); LNg=(E%2===0)?E-1:E; }
+      const PNg=LNg*2; let dd1,dd2;
+      if(S==='U'||S==='D'){ PWg=(LNg-1)*dlg; dd1=PWg; dd2=PHg; } else { PHg=(LNg-1)*dlg; dd1=PHg; dd2=PWg; }
+      const GW=PWg, GH=PHg;
+      const GTXg=gv(table,'GTX',g,0), GTYg=gv(table,'GTY',g,0);
+      const GCX=GTXg-GW/2, GCY=GTYg-GH/2, PCX=GCX, PCY=GCY;
+      const XX=[GTXg-GW, GTXg], YY=[GTYg-GH, GTYg];
+      let FPX,FPY,d,PXX,PYY;
+      if(S==='U'){ if(L==='R'){FPX=XX[0];FPY=YY[0];d=dlg;} else {FPX=XX[1];FPY=YY[0];d=-dlg;} PXX=PCX; PYY=FPY; }
+      else if(S==='D'){ if(L==='R'){FPX=XX[0];FPY=YY[1];d=dlg;} else {FPX=XX[1];FPY=YY[1];d=-dlg;} PXX=PCX; PYY=FPY; }
+      else if(S==='R'){ if(L==='U'){FPX=XX[0];FPY=YY[0];d=dlg;} else {FPX=XX[0];FPY=YY[1];d=-dlg;} PXX=FPX; PYY=PCY; }
+      else { if(L==='U'){FPX=XX[1];FPY=YY[0];d=dlg;} else {FPX=XX[1];FPY=YY[1];d=-dlg;} PXX=FPX; PYY=PCY; }
+      let PX=FPX, PY=FPY; const pts=new Array(PNg);
+      for(let p=0;p<PNg;p++){
+        pts[p]=[PX,PY];
+        if(S==='U'||S==='D'){
+          if(PY===PYY){ if(PY===YY[0]) PY=YY[1]; else if(PY===YY[1]) PY=YY[0]; } else PYY=PY;
+          if(PX===PXX){ PX=PX+d; } else PXX=PX;
+        } else {
+          if(PX===PXX){ if(PX===XX[0]) PX=XX[1]; else if(PX===XX[1]) PX=XX[0]; } else PXX=PX;
+          if(PY===PYY){ PY=PY+d; } else PYY=PY;
+        }
+      }
+      cells.push({g,kind:'polygon',GCX,GCY,GW,GH,pts,SSraw:0});
+    }
+    return cells;
+  }
+
+  function buildRectCells(table, warnings){
+    const GN=table.GN.data[0][0];
+    const cells=[];
+    let rhWarned=false;
+    for(let g=1; g<=GN; g++){
+      const S=String(gv(table,'s',g,'R')), L=String(gv(table,'l',g,'D'));
+      const dlg=gv(table,'dl',g, gv(table,'ds',g,1));
+      const LLg=gv(table,'LL',g,1), SLg=gv(table,'SL',g,1), RNg=Math.round(gv(table,'RN',g,1));
+      const MW=dlg*(RNg-1)/1000;
+      let GW,GH,RW,RH;
+      if(L==='R'||L==='L'){ GW=LLg+MW; GH=SLg; RW=LLg; RH=SLg; }
+      else if(L==='U'){ GH=SLg+MW; GW=LLg; RW=SLg; RH=LLg; }
+      else { GH=SLg+MW; GW=LLg; RW=LLg; RH=SLg; if(!rhWarned){ warnings.push("linescan 'D' 케이스: 원본 스크립트에 RH 정의 누락(버그로 보임) — SL 값으로 대체함"); rhWarned=true; } }
+      const GTXg=gv(table,'GTX',g,0), GTYg=gv(table,'GTY',g,0);
+      let GCX,GCY,dx,dy;
+      if(S==='U'){ GCX=GTXg-GW/2; GCY=GTYg-GH/2; dy=0; }
+      else if(S==='D'){ GCX=GTXg+GW/2-MW; GCY=GTYg-GH/2; dy=0; }
+      else if(S==='R'){ GCX=GTXg-GW/2; GCY=GTYg+GH/2-MW; dx=0; }
+      else { GCX=GTXg-GW/2; GCY=GTYg-GH/2; dx=0; }
+      let FRX,FRY;
+      if(L==='R'){ dx=dlg; FRY=GCY; FRX=(S==='U')?(GTXg-MW-LLg/2):(GTXg-MW+LLg/2); }
+      else if(L==='L'){ dx=-dlg; FRY=GCY; FRX=(S==='U')?(GTXg-LLg/2):(GTXg+LLg/2); }
+      else if(L==='U'){ dy=dlg; FRX=GCX; FRY=(S==='R')?(GTYg-MW+LLg/2):(GTYg-MW-LLg/2); }
+      else { dy=-dlg; FRX=GCX; FRY=(S==='R')?(GTYg+LLg/2):(GTYg-LLg/2); }
+      dx=dx===undefined?0:dx; dy=dy===undefined?0:dy;
+      const pts=new Array(RNg), rectSize={w:RW,h:RH};
+      for(let r=1;r<=RNg;r++){
+        pts[r-1]=[ FRX+dx*(r-1)/1000, FRY+dy*(r-1)/1000 ];
+      }
+      cells.push({g,kind:'rects',GCX,GCY,GW,GH,pts,rectSize,SSraw:0});
+    }
+    return cells;
+  }
+
+  // ============================================================
+  // 3. 전체 파이프라인: 소스 문자열 -> cells + timing + colors
+  // ============================================================
+  let state = null;
+
+  function buildFromSource(src, label){
+    const {table, warnings} = runPreamble(src);
+    const kind = detectKind(table);
+    if(kind==='unknown'){
+      warnings.push('스캔 타입을 인식하지 못했음 (LN/PH 또는 RN/LL/SL 변수가 없음) — group_setting.m/polygon_setting.m 같은 보조 파일이 아니라 Main 스크립트를 올려줘.');
+    }
+    const RR = table.RR? table.RR.data[0][0] : 30;
+    let cells;
+    if(kind==='rect') cells = buildRectCells(table, warnings);
+    else cells = buildPolygonCells(table, warnings);
+
+    // speed(mm/s) 계산: ds(or SPx) 존재하는 셀별로. JumpSpeed=ScanSpeed 가정(모든 샘플 파일 동일 패턴).
+    const GN = table.GN? table.GN.data[0][0] : cells.length;
+    for(let g=1; g<=GN; g++){
+      const dsg = gv(table,'ds',g, gv(table,'SPx',g,1));
+      cells[g-1].SS = RR*dsg; // RR[kHz]*ds[um]/1000 = SS[m/s]; *1000 for mm/s cancels -> RR*ds
+      cells[g-1].JS = cells[g-1].SS;
+    }
+
+    if(cells.length===0){ warnings.push('cell을 하나도 만들지 못했음.'); }
+    return { table, warnings, kind, cells, GN };
+  }
+
+  function finalizeState(built, label){
+    const cells = built.cells;
+    // bounds
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    cells.forEach(c=>c.pts.forEach(([x,y])=>{ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }));
+    if(!isFinite(minX)){ minX=0;maxX=1;minY=0;maxY=1; }
+
+    // color mapping
+    let ssMin=Infinity, ssMax=-Infinity;
+    cells.forEach(c=>{ if(c.SS<ssMin) ssMin=c.SS; if(c.SS>ssMax) ssMax=c.SS; });
+    const stops=[[37,99,235],[14,165,233],[245,158,11]];
+    function colorForSpeed(v){
+      const t=(ssMax>ssMin)?(v-ssMin)/(ssMax-ssMin):0.5;
+      const seg=t<0.5?0:1, lt=t<0.5?t/0.5:(t-0.5)/0.5;
+      const a=stops[seg], b=stops[seg+1];
+      return `rgb(${Math.round(a[0]+(b[0]-a[0])*lt)},${Math.round(a[1]+(b[1]-a[1])*lt)},${Math.round(a[2]+(b[2]-a[2])*lt)})`;
+    }
+    cells.forEach(c=>{ c.color=colorForSpeed(c.SS); });
+
+    // timing: distance/speed for consecutive points, + jump between cells
+    function dist(a,b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+    let t=0;
+    cells.forEach((c,idx)=>{
+      if(idx>0){
+        const prev=cells[idx-1].pts[cells[idx-1].pts.length-1];
+        const jd=dist(prev, c.pts[0]);
+        c.jumpDur = c.JS>0 ? jd/c.JS : 0;
+        c.jumpStart = t; t += c.jumpDur;
+      } else { c.jumpDur=0; c.jumpStart=t; }
+      c.markStart=t;
+      const cum=new Array(c.pts.length).fill(0);
+      for(let k=1;k<c.pts.length;k++) cum[k]=cum[k-1] + (c.SS>0 ? dist(c.pts[k-1],c.pts[k])/c.SS : 0);
+      c.cum=cum; t += cum[cum.length-1]; c.markEnd=t;
+    });
+    const totalDuration = Math.max(t, 1e-6);
+
+    return { ...built, minX,maxX,minY,maxY, ssMin, ssMax, totalDuration, label };
+  }
+
+  // ============================================================
+  // 4. 렌더링
+  // ============================================================
+  const baseC=document.getElementById('base'), ovC=document.getElementById('overlay');
+  const bctx=baseC.getContext('2d'), octx=ovC.getContext('2d');
+  const RULER=26;
+  let DPR=1, DISP=760;
+  let scale=1, offX=0, offY=0; // fit-to-bounds base transform (mm -> pre-zoom px, inside draw area)
+  let zoom=1, panX=0, panY=0;
+
+  function drawAreaSize(){ return DISP-RULER; }
+
+  function baseXY(x,y){ return [ offX + x*scale, drawAreaSize() - (offY + y*scale) ]; }
+  function toScreen(x,y){
+    const [bx,by]=baseXY(x,y);
+    return [ RULER + bx*zoom + panX, RULER + by*zoom + panY ];
+  }
+  function invScreenX(sx){ return (sx - RULER - panX)/zoom; } // -> base px (pre mm)
+  function invScreenY(sy){ return (sy - RULER - panY)/zoom; }
+
+  function resizeCanvases(){
+    const rect=baseC.getBoundingClientRect();
+    DISP=rect.width; DPR=window.devicePixelRatio||1;
+    [baseC,ovC].forEach(c=>{ c.width=DISP*DPR; c.height=DISP*DPR; });
+    bctx.setTransform(DPR,0,0,DPR,0,0); octx.setTransform(DPR,0,0,DPR,0,0);
+    fitBounds();
+  }
+
+  function fitBounds(){
+    if(!state) return;
+    const spanX=(state.maxX-state.minX)||1, spanY=(state.maxY-state.minY)||1;
+    const D=drawAreaSize(), pad=D*0.06;
+    scale = Math.min((D-pad*2)/spanX, (D-pad*2)/spanY);
+    offX = (D - spanX*scale)/2 - state.minX*scale;
+    offY = (D - spanY*scale)/2 - state.minY*scale;
+  }
+
+  function niceStep(target){
+    const cands=[0.05,0.1,0.2,0.5,1,2,5,10,20,50,100];
+    let best=cands[0], bestDiff=Infinity;
+    for(const c of cands){ const diff=Math.abs(target-c); if(diff<bestDiff){ bestDiff=diff; best=c; } }
+    return best;
+  }
+
+  function drawRuler(){
+    bctx.save();
+    bctx.fillStyle='#fff'; bctx.fillRect(0,0,DISP,RULER); bctx.fillRect(0,0,RULER,DISP);
+    bctx.strokeStyle='#e2e3e8'; bctx.lineWidth=1;
+    bctx.beginPath(); bctx.moveTo(0,RULER+0.5); bctx.lineTo(DISP,RULER+0.5); bctx.moveTo(RULER+0.5,0); bctx.lineTo(RULER+0.5,DISP); bctx.stroke();
+
+    const D=drawAreaSize();
+    // 화면(px) -> mm 역변환으로 현재 보이는 mm 범위 계산
+    const mmLeft = ( invScreenX(RULER) - offX ) / scale;
+    const mmRight = ( invScreenX(DISP) - offX ) / scale;
+    const mmTop = ( (D - invScreenY(RULER)) - offY ) / scale;   // y화면 위쪽 = mm 큰값
+    const mmBottom = ( (D - invScreenY(DISP)) - offY ) / scale;
+    const visSpanX = Math.abs(mmRight-mmLeft), visSpanY=Math.abs(mmTop-mmBottom);
+    const stepX = niceStep(visSpanX/7), stepY = niceStep(visSpanY/7);
+
+    bctx.fillStyle='#9aa0ab'; bctx.font='10px '+getComputedStyle(document.body).fontFamily;
+    bctx.textAlign='center'; bctx.textBaseline='top';
+    const startX=Math.floor(Math.min(mmLeft,mmRight)/stepX)*stepX;
+    for(let v=startX; v<=Math.max(mmLeft,mmRight)+1e-6; v+=stepX){
+      const [sx] = toScreen(v, mmBottom);
+      if(sx<RULER || sx>DISP) continue;
+      bctx.strokeStyle='#f0f0f2'; bctx.beginPath(); bctx.moveTo(sx,RULER); bctx.lineTo(sx,DISP); bctx.stroke();
+      bctx.fillText(v.toFixed(Math.max(0,-Math.floor(Math.log10(stepX)))+(stepX<1?1:0)), sx, 4);
+    }
+    bctx.textAlign='left'; bctx.textBaseline='middle';
+    const startY=Math.floor(Math.min(mmTop,mmBottom)/stepY)*stepY;
+    for(let v=startY; v<=Math.max(mmTop,mmBottom)+1e-6; v+=stepY){
+      const [,sy] = toScreen(mmLeft, v);
+      if(sy<RULER || sy>DISP) continue;
+      bctx.strokeStyle='#f0f0f2'; bctx.beginPath(); bctx.moveTo(RULER,sy); bctx.lineTo(DISP,sy); bctx.stroke();
+      bctx.save(); bctx.translate(3,sy); bctx.fillText(v.toFixed(Math.max(0,-Math.floor(Math.log10(stepY)))+(stepY<1?1:0)), 0, 0); bctx.restore();
+    }
+    bctx.restore();
+  }
+
+  function drawCellBoxes(){
+    bctx.save(); bctx.strokeStyle='#ececed'; bctx.lineWidth=1;
+    state.cells.forEach(c=>{
+      const [x0,y0]=toScreen(c.GCX-c.GW/2, c.GCY+c.GH/2);
+      const [x1,y1]=toScreen(c.GCX+c.GW/2, c.GCY-c.GH/2);
+      bctx.strokeRect(x0,y0, x1-x0, y1-y0);
+    });
+    bctx.restore();
+  }
+
+  function clearBase(){ bctx.clearRect(0,0,DISP,DISP); drawRuler(); drawCellBoxes(); }
+
+  function colorAlpha(rgbStr, a){
+    const m=rgbStr.match(/rgb\((\d+),(\d+),(\d+)\)/);
+    return m? `rgba(${m[1]},${m[2]},${m[3]},${a})` : rgbStr;
+  }
+
+  function drawCellFull(ctx, c){
+    if(c.kind==='polygon'){
+      ctx.strokeStyle=c.color; ctx.lineWidth=Math.max(0.7, 1.1*Math.min(2,zoom));
+      ctx.beginPath();
+      const [x0,y0]=toScreen(c.pts[0][0],c.pts[0][1]); ctx.moveTo(x0,y0);
+      for(let k=1;k<c.pts.length;k++){ const [x,y]=toScreen(c.pts[k][0],c.pts[k][1]); ctx.lineTo(x,y); }
+      ctx.stroke();
+    } else {
+      ctx.fillStyle=colorAlpha(c.color,0.32);
+      ctx.strokeStyle=colorAlpha(c.color,0.6); ctx.lineWidth=0.5;
+      const w=c.rectSize.w, h=c.rectSize.h;
+      for(let k=0;k<c.pts.length;k++){
+        const [cx,cy]=c.pts[k];
+        const [x0,y0]=toScreen(cx-w/2, cy+h/2), [x1,y1]=toScreen(cx+w/2, cy-h/2);
+        ctx.fillRect(x0,y0,x1-x0,y1-y0);
+      }
+      ctx.beginPath(); ctx.strokeStyle=colorAlpha(c.color,0.7); ctx.lineWidth=0.6;
+      const [px0,py0]=toScreen(c.pts[0][0],c.pts[0][1]); ctx.moveTo(px0,py0);
+      for(let k=1;k<c.pts.length;k++){ const [x,y]=toScreen(c.pts[k][0],c.pts[k][1]); ctx.lineTo(x,y); }
+      ctx.stroke();
+    }
+  }
+  function drawJumpFull(ctx, c, idx){
+    if(idx===0 || !document.getElementById('chk-jump').checked) return;
+    const prev = state.cells[idx-1].pts[state.cells[idx-1].pts.length-1];
+    ctx.save(); ctx.strokeStyle='#c9803b'; ctx.lineWidth=0.8; ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    const [x0,y0]=toScreen(prev[0],prev[1]); ctx.moveTo(x0,y0);
+    const [x1,y1]=toScreen(c.pts[0][0],c.pts[0][1]); ctx.lineTo(x1,y1);
+    ctx.stroke(); ctx.restore();
+  }
+
+  let elapsed=0, playing=false, rate=1, committed=-1, lastTs=null;
+  let lastIdxSeen=-1;
+
+  function findCellIndex(tt){
+    const cells=state.cells;
+    if(tt<=0) return 0;
+    if(tt>=state.totalDuration) return cells.length-1;
+    for(let i=0;i<cells.length;i++) if(tt < cells[i].markEnd) return i;
+    return cells.length-1;
+  }
+
+  function rebuildBaseUpTo(idxExclusive){
+    clearBase();
+    committed=-1;
+    while(committed < idxExclusive-1){ committed++; drawJumpFull(bctx, state.cells[committed], committed); drawCellFull(bctx, state.cells[committed]); }
+  }
+
+  function render(force){
+    if(!state) return;
+    const cells=state.cells;
+    const idx=findCellIndex(elapsed);
+    if(force || committed>idx) rebuildBaseUpTo(idx);
+    while(committed < idx-1){ committed++; drawJumpFull(bctx, cells[committed], committed); drawCellFull(bctx, cells[committed]); }
+
+    const c=cells[idx];
+    octx.clearRect(0,0,DISP,DISP);
+    let beamPt, rawMM;
+
+    if(elapsed < c.markStart){
+      const frac = c.jumpDur>0 ? Math.min(1,(elapsed-c.jumpStart)/c.jumpDur) : 1;
+      const prevPt = idx>0 ? cells[idx-1].pts[cells[idx-1].pts.length-1] : c.pts[0];
+      const mmX = prevPt[0]+(c.pts[0][0]-prevPt[0])*frac, mmY = prevPt[1]+(c.pts[0][1]-prevPt[1])*frac;
+      rawMM=[mmX,mmY];
+      if(document.getElementById('chk-jump').checked){
+        octx.save(); octx.strokeStyle='#c9803b'; octx.lineWidth=0.8; octx.setLineDash([3,3]);
+        octx.beginPath();
+        const [px,py]=toScreen(prevPt[0],prevPt[1]); octx.moveTo(px,py);
+        beamPt=toScreen(mmX,mmY); octx.lineTo(beamPt[0],beamPt[1]);
+        octx.stroke(); octx.restore();
+      } else beamPt=toScreen(c.pts[0][0],c.pts[0][1]);
+    } else {
+      const rel=elapsed-c.markStart;
+      let k=0; while(k<c.cum.length-1 && c.cum[k+1]<rel) k++;
+      const segStart=c.cum[k], segEnd=c.cum[Math.min(k+1,c.cum.length-1)];
+      const segFrac = segEnd>segStart ? Math.min(1,(rel-segStart)/(segEnd-segStart)) : 1;
+      const p0=c.pts[k], p1=c.pts[Math.min(k+1,c.pts.length-1)];
+      const mmX=p0[0]+(p1[0]-p0[0])*segFrac, mmY=p0[1]+(p1[1]-p0[1])*segFrac;
+      rawMM=[mmX,mmY];
+
+      if(c.kind==='polygon'){
+        octx.strokeStyle=c.color; octx.lineWidth=1.1;
+        octx.beginPath();
+        const [sx0,sy0]=toScreen(c.pts[0][0],c.pts[0][1]); octx.moveTo(sx0,sy0);
+        for(let j=1;j<=k;j++){ const [sx,sy]=toScreen(c.pts[j][0],c.pts[j][1]); octx.lineTo(sx,sy); }
+        const [bx,by]=toScreen(mmX,mmY); octx.lineTo(bx,by);
+        octx.stroke();
+      } else {
+        octx.fillStyle=colorAlpha(c.color,0.32);
+        const w=c.rectSize.w, h=c.rectSize.h;
+        for(let j=0;j<=k;j++){
+          const [cx,cy]=c.pts[j];
+          const [x0,y0]=toScreen(cx-w/2, cy+h/2), [x1,y1]=toScreen(cx+w/2, cy-h/2);
+          octx.fillRect(x0,y0,x1-x0,y1-y0);
+        }
+      }
+      beamPt=toScreen(mmX,mmY);
+    }
+
+    octx.save();
+    octx.fillStyle='rgba(124,58,237,0.16)'; octx.beginPath(); octx.arc(beamPt[0],beamPt[1],7,0,Math.PI*2); octx.fill();
+    octx.fillStyle='#7c3aed'; octx.beginPath(); octx.arc(beamPt[0],beamPt[1],2.6,0,Math.PI*2); octx.fill();
+    octx.restore();
+
+    document.getElementById('hud-cell').textContent = `${c.g} / ${state.GN}`;
+    document.getElementById('hud-x').textContent = rawMM[0].toFixed(3);
+    document.getElementById('hud-y').textContent = rawMM[1].toFixed(3);
+    document.getElementById('hud-speed').textContent = (elapsed<c.markStart? c.JS : c.SS).toFixed(1)+' mm/s';
+    document.getElementById('hud-time').textContent = `${elapsed.toFixed(3)}s / ${state.totalDuration.toFixed(2)}s`;
+    document.getElementById('hud-zoom').textContent = zoom.toFixed(1)+'×';
+
+    const scrub=document.getElementById('scrub');
+    if(document.activeElement!==scrub) scrub.value=Math.round((elapsed/state.totalDuration)*1000);
+
+    if(playing && document.getElementById('chk-autostop').checked && idx!==lastIdxSeen && lastIdxSeen!==-1){
+      elapsed = c.jumpStart; playing=false; setPlayBtn(); render(false); 
+    }
+    lastIdxSeen=idx;
+  }
+
+  function setPlayBtn(){ document.getElementById('btn-play').textContent = playing?'일시정지':'재생'; }
+
+  function frame(ts){
+    if(playing && state){
+      if(lastTs===null) lastTs=ts;
+      const dt=(ts-lastTs)/1000; lastTs=ts;
+      elapsed=Math.min(state.totalDuration, elapsed+dt*rate);
+      if(elapsed>=state.totalDuration){ playing=false; setPlayBtn(); }
+      render(false);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ============================================================
+  // 5. 컨트롤 바인딩
+  // ============================================================
+  const RMIN=0.02, RMAX=200;
+  function sliderToRate(sv){ return RMIN*Math.pow(RMAX/RMIN, sv/1000); }
+  document.getElementById('rate').addEventListener('input', e=>{
+    rate=sliderToRate(+e.target.value);
+    document.getElementById('rate-val').textContent = (rate<1? rate.toFixed(2) : rate.toFixed(1))+'×';
+  });
+  document.getElementById('rate').dispatchEvent(new Event('input'));
+
+  document.getElementById('btn-play').addEventListener('click', ()=>{
+    if(!state) return;
+    if(elapsed>=state.totalDuration) elapsed=0;
+    playing=!playing; lastTs=null; lastIdxSeen=findCellIndex(elapsed); setPlayBtn();
+  });
+  document.getElementById('btn-reset').addEventListener('click', ()=>{ playing=false; setPlayBtn(); elapsed=0; render(true); });
+  document.getElementById('btn-prev').addEventListener('click', ()=>{
+    if(!state) return; playing=false; setPlayBtn();
+    const idx=Math.max(0, findCellIndex(elapsed)-1); elapsed=state.cells[idx].jumpStart; render(true);
+  });
+  document.getElementById('btn-next').addEventListener('click', ()=>{
+    if(!state) return; playing=false; setPlayBtn();
+    const idx=Math.min(state.cells.length-1, findCellIndex(elapsed)+1); elapsed=state.cells[idx].jumpStart; render(true);
+  });
+  document.getElementById('scrub').addEventListener('input', e=>{ if(!state) return; elapsed=(+e.target.value/1000)*state.totalDuration; render(false); });
+  document.getElementById('chk-jump').addEventListener('change', ()=>render(true));
+  document.getElementById('chk-autostop').addEventListener('change', ()=>{ lastIdxSeen=state?findCellIndex(elapsed):-1; });
+
+  document.getElementById('btn-zoomin').addEventListener('click', ()=>zoomAt(drawAreaSize()/2+RULER, drawAreaSize()/2+RULER, 1.3));
+  document.getElementById('btn-zoomout').addEventListener('click', ()=>zoomAt(drawAreaSize()/2+RULER, drawAreaSize()/2+RULER, 1/1.3));
+  document.getElementById('btn-fitall').addEventListener('click', ()=>{ zoom=1; panX=0; panY=0; render(true); });
+  document.getElementById('btn-fitcell').addEventListener('click', ()=>{
+    if(!state) return;
+    const c=state.cells[findCellIndex(elapsed)];
+    const D=drawAreaSize();
+    const [bx,by]=baseXY(c.GCX, c.GCY);
+    const targetZoom=Math.min( (D*0.8)/(c.GW*scale||1), (D*0.8)/(c.GH*scale||1) );
+    zoom=Math.max(0.5, Math.min(80, targetZoom));
+    panX = D/2 - bx*zoom; panY = D/2 - by*zoom;
+    render(true);
+  });
+
+  function zoomAt(sx, sy, factor){
+    const preX=invScreenX(sx), preY=invScreenY(sy);
+    zoom=Math.max(0.4, Math.min(120, zoom*factor));
+    panX = (sx-RULER) - preX*zoom;
+    panY = (sy-RULER) - preY*zoom;
+    render(true);
+  }
+
+  const interact=document.getElementById('interact');
+  interact.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const rect=baseC.getBoundingClientRect();
+    const sx=(e.clientX-rect.left)*(DISP/rect.width), sy=(e.clientY-rect.top)*(DISP/rect.height);
+    zoomAt(sx, sy, e.deltaY<0?1.15:1/1.15);
+  }, {passive:false});
+  let dragging=false, dragSX=0, dragSY=0, dragPanX=0, dragPanY=0;
+  interact.addEventListener('pointerdown', e=>{ dragging=true; interact.classList.add('dragging'); dragSX=e.clientX; dragSY=e.clientY; dragPanX=panX; dragPanY=panY; interact.setPointerCapture(e.pointerId); });
+  interact.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const rect=baseC.getBoundingClientRect();
+    const kx=DISP/rect.width, ky=DISP/rect.height;
+    panX = dragPanX + (e.clientX-dragSX)*kx;
+    panY = dragPanY + (e.clientY-dragSY)*ky;
+    render(true);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(evt=>interact.addEventListener(evt, ()=>{ dragging=false; interact.classList.remove('dragging'); }));
+
+  window.addEventListener('resize', ()=>{ resizeCanvases(); render(true); });
+
+  // ============================================================
+  // 6. 파일 로드
+  // ============================================================
+  function showWarnings(list){
+    const box=document.getElementById('warnBox');
+    if(!list || list.length===0){ box.style.display='none'; box.textContent=''; return; }
+    box.style.display='block';
+    box.textContent = '파싱 참고사항 ('+list.length+'):\n' + list.slice(0,12).join('\n') + (list.length>12? `\n... 외 ${list.length-12}개` : '');
+  }
+
+  function loadSource(src, label){
+    const built = buildFromSource(src, label);
+    state = finalizeState(built, label);
+    elapsed=0; playing=false; setPlayBtn(); committed=-1; lastIdxSeen=-1;
+    document.getElementById('src-info').textContent = `로드됨: ${label} · cell ${state.GN}개`;
+    document.getElementById('modeTag').textContent = state.kind==='rect' ? 'rectangle' : (state.kind==='polygon'?'polygon':'unknown');
+    document.getElementById('kind-note').textContent = state.kind==='rect'
+      ? 'rectangle 타입: 사각형 중심 이동 순서와 겹침 영역(반투명 누적)만 근사 표시 — 내부 hatch 채움 경로는 SCANLAB 소프트웨어가 자체 처리하므로 이 스크립트만으로는 알 수 없음.'
+      : 'polygon 타입: group_setting.m + polygon_setting.m 로직을 그대로 재현한 정확한 지그재그 경로.';
+    document.getElementById('leg-min').textContent = state.ssMin.toFixed(1)+' mm/s';
+    document.getElementById('leg-max').textContent = state.ssMax.toFixed(1)+' mm/s';
+    showWarnings(state.warnings);
+    zoom=1; panX=0; panY=0;
+    resizeCanvases();
+    render(true);
+  }
+
+  document.getElementById('fileInput').addEventListener('change', e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload = ()=> loadSource(reader.result, f.name);
+    reader.readAsText(f);
+  });
+
+  // ============================================================
+  // 7. 기본 로드 (Rasterscan_I0340_N800_260429.m)
+  // ============================================================
+  const DEFAULT_SRC = `clc;
+clear;
+RR = 50;
+GN = 144;
+s = 'R' * ones(1,GN);
+l = 'D' * ones(1,GN);
+SPx = 5.1265;
+ds = SPx * ones(1,GN);
+SPy = 5.1265;
+dl = SPy * ones(1,GN);
+GN = length(dl);
+SS = RR * ds / 1000;
+JS = SS;
+PH = 1.2 * ones(1,GN);
+PW = 1.2 * ones(1,GN);
+E = round( ( PH * 1000 ) ./ dl );
+F = rem(E,2);
+[aa, bb] = find(F == 0);
+E(bb) = E(bb) - 1;
+LN = [E];
+PN = LN * 2;
+R = 0;
+row_values = [-8.2, -6.6, -5, -3.4, -1.8, -0.2, 1.4, 3, 4.6, 6.2, 7.8, 9.4];
+GTX = repmat(row_values, 12, 1);
+col_values = [9.4:-1.6:-8.2];
+GTY = repmat(col_values', 1, 12);
+Xtran = 0 * ones(1,GN);
+Ytran = 0 * ones(1,GN);
+for g = 1:GN
+end
+`;
+  loadSource(DEFAULT_SRC, 'Rasterscan_I0340_N800_260429.m (내장 기본값)');
+
+})();
+</script>
+</body>
+</html>

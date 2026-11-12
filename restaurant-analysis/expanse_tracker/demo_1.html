@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>식당 손익 분석 데모 - 포트폴리오</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background:#f5f5f7; color:#111; }
+    header { background:#111827; color:white; padding:16px 20px; }
+    header h1 { margin:0; font-size:20px; }
+    header p { margin:4px 0 0; font-size:13px; color:#9ca3af; }
+    main { max-width:960px; margin:0 auto; padding:20px 16px 40px; }
+    .layout { display:grid; grid-template-columns:1.2fr 1.8fr; gap:16px; }
+    @media (max-width: 800px) { .layout { grid-template-columns:1fr; } }
+    .card { background:white; border-radius:10px; padding:16px 14px; box-shadow:0 8px 20px rgba(15,23,42,0.08); }
+    .card h2 { margin:0 0 10px; font-size:16px; }
+    .field { margin-bottom:8px; }
+    .field label { display:block; font-size:12px; margin-bottom:2px; color:#4b5563; }
+    .field input { width:100%; box-sizing:border-box; padding:6px 8px; border-radius:6px; border:1px solid #d1d5db; font-size:13px; }
+    .field-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    button { margin-top:8px; padding:8px 10px; border-radius:999px; border:none; background:#111827; color:white; font-size:13px; cursor:pointer; }
+    button:hover { background:#1f2937; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-top:8px; }
+    .metric { padding:8px 10px; border-radius:8px; background:#f9fafb; border:1px solid #e5e7eb; }
+    .metric-label { font-size:11px; color:#6b7280; margin-bottom:2px; }
+    .metric-value { font-size:15px; font-weight:600; }
+    .metric-sub { font-size:11px; color:#9ca3af; }
+    canvas { max-width:100%; }
+    .insight { margin-top:8px; font-size:13px; line-height:1.5; background:#f9fafb; border-radius:8px; padding:8px 10px; border:1px dashed #d1d5db; white-space:pre-line; }
+    small { font-size:11px; color:#9ca3af; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>식당 손익 분석 데모</h1>
+    <p>반도체 공정·데이터 분석 역량을 보여주기 위한 소상공인 매출·비용 분석 툴 데모</p>
+  </header>
+  <main>
+    <div class="layout">
+      <section class="card">
+        <h2>1. 기본 입력</h2>
+        <small>실제 식당에서 사용하는 엑셀 양식을 웹 UI로 단순화</small>
+        <div class="field">
+          <label>월 매출 (원)</label>
+          <input id="sales" type="number" value="35000000" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>재료비 합계 (원)</label>
+            <input id="cogs" type="number" value="12150000" />
+          </div>
+          <div class="field">
+            <label>인건비 합계 (원)</label>
+            <input id="labor" type="number" value="8960000" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>운영비 (배달비, 마케팅 등, 원)</label>
+            <input id="opex" type="number" value="4447970" />
+          </div>
+          <div class="field">
+            <label>공과금 (원)</label>
+            <input id="utilities" type="number" value="1050000" />
+          </div>
+        </div>
+        <div class="field">
+          <label>세금 (원)</label>
+          <input id="tax" type="number" value="3500000" />
+        </div>
+        <button onclick="updateAll()">손익 분석하기</button>
+        <small>포트폴리오 포인트: 공정 수율 분석과 유사한 구조의 비용 브레이크다운 및 KPI 계산 로직 구현</small>
+      </section>
+
+      <section class="card">
+        <h2>2. 핵심 지표</h2>
+        <div class="metrics" id="metrics"></div>
+        <div class="insight" id="insight"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px;">
+      <h2>3. 비용 구조 시각화</h2>
+      <small>Chart.js 활용, 공정 Step 별 Loss 시각화와 유사한 UX</small>
+      <canvas id="costChart" height="140"></canvas>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const fmtWon = v => v.toLocaleString('ko-KR') + '원';
+    const fmtPct = v => (v*100).toFixed(1) + '%';
+
+    function compute() {
+      const sales = +document.getElementById('sales').value || 0;
+      const cogs = +document.getElementById('cogs').value || 0;
+      const labor = +document.getElementById('labor').value || 0;
+      const opex = +document.getElementById('opex').value || 0;
+      const utilities = +document.getElementById('utilities').value || 0;
+      const tax = +document.getElementById('tax').value || 0;
+
+      const totalCost = cogs + labor + opex + utilities + tax;
+      const profit = sales - totalCost;
+      const margin = sales > 0 ? profit / sales : 0;
+      const cogsRate = sales > 0 ? cogs / sales : 0;
+      const laborRate = sales > 0 ? labor / sales : 0;
+
+      return { sales, cogs, labor, opex, utilities, tax, totalCost, profit, margin, cogsRate, laborRate };
+    }
+
+    function renderMetrics(m) {
+      const el = document.getElementById('metrics');
+      el.innerHTML = '';
+      const items = [
+        { label: '순수익', value: fmtWon(m.profit), sub: '월 매출 - 총지출' },
+        { label: '순이익률', value: fmtPct(m.margin), sub: '순수익 / 매출' },
+        { label: '원가율', value: fmtPct(m.cogsRate), sub: '재료비 / 매출' },
+        { label: '인건비율', value: fmtPct(m.laborRate), sub: '인건비 / 매출' },
+      ];
+      for (const it of items) {
+        const div = document.createElement('div');
+        div.className = 'metric';
+        div.innerHTML = `<div class="metric-label">${it.label}</div>
+                         <div class="metric-value">${it.value}</div>
+                         <div class="metric-sub">${it.sub}</div>`;
+        el.appendChild(div);
+      }
+    }
+
+    function renderInsight(m) {
+      let lines = [];
+      if (m.sales === 0) {
+        lines.push('매출이 0으로 입력되어 있어, 지표를 해석할 수 없습니다. 최소 한 달치 데이터를 입력해 주세요.');
+        document.getElementById('insight').textContent = lines.join('\n');
+        return;
+      }
+      if (m.margin < 0) lines.push('※ 순이익이 적자로 계산되었습니다. 비용 구조 점검이 필요합니다.');
+      else if (m.margin < 0.05) lines.push('※ 순이익률이 5% 미만으로 낮습니다. 배달 수수료, 인건비, 고정비를 우선 점검하는 것이 좋습니다.');
+      else if (m.margin < 0.10) lines.push('※ 순이익률이 5~10% 구간입니다. 업계 평균 수준이나, 재료비와 인건비 개선 여지가 있습니다.');
+      else lines.push('※ 순이익률이 10% 이상으로 양호합니다. 현재 비용 구조를 유지하면서 매출 확장 전략을 고려할 수 있습니다.');
+
+      if (m.cogsRate > 0.40) lines.push('- 재료비율이 40%를 초과하여 수익성에 부담을 줄 수 있습니다. 메뉴 원가 재점검을 고려해 볼 수 있습니다.');
+      if (m.laborRate > 0.30) lines.push('- 인건비율이 30%를 초과했습니다. 피크타임/비피크타임 인력 배치 최적화를 검토해 볼 수 있습니다.');
+
+      const varCost = m.cogs + m.labor;
+      const fixCost = m.opex + m.utilities + m.tax;
+      if (fixCost / m.totalCost > 0.5) {
+        lines.push('- 고정비 비중이 높아 매출 변동에 대한 민감도가 큽니다. 임차료·공과금·세금 구조를 중장기적으로 관리하는 전략이 중요합니다.');
+      }
+
+      document.getElementById('insight').textContent = lines.join('\n');
+    }
+
+    let costChart;
+    function renderChart(m) {
+      const ctx = document.getElementById('costChart').getContext('2d');
+      const data = {
+        labels: ['재료비', '인건비', '운영비', '공과금', '세금'],
+        datasets: [{
+          label: '비용 구성 (원)',
+          data: [m.cogs, m.labor, m.opex, m.utilities, m.tax],
+          backgroundColor: ['#3b82f6', '#10b981', '#f97316', '#6366f1', '#ef4444']
+        }]
+      };
+      if (costChart) { costChart.data = data; costChart.update(); return; }
+      costChart = new Chart(ctx, {
+        type: 'bar',
+        data,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => fmtWon(ctx.parsed.y) } }
+          },
+          scales: {
+            y: { ticks: { callback: v => v >= 1000000 ? (v/1000000)+'M' : v/1000+'k' } }
+          }
+        }
+      });
+    }
+
+    function updateAll() {
+      const m = compute();
+      renderMetrics(m);
+      renderInsight(m);
+      renderChart(m);
+    }
+
+    updateAll();
+  </script>
+</body>
+</html>

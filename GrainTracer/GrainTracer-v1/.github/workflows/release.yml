@@ -1,0 +1,44 @@
+# Builds the macOS app on GitHub and attaches it to a Release when a tag like v1.0.0 is pushed.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" mac/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" mac/Info.plist
+
+      - name: Build app
+        run: bash build.sh
+
+      - name: Package
+        run: bash package.sh
+
+      - name: Upload build (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GrainTracer-macOS
+          path: dist/*
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Grain Tracer ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: dist/*

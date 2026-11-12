@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raman Xc Mapper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#f7f8fa;
+    --panel2:#ffffff;
+    --line:#dfe3e9;
+    --text:#1b2230;
+    --sub:#6b7484;
+    --accent:#0f9d68;
+    --accent2:#c97a12;
+    --danger:#e0323f;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Space Grotesk',sans-serif; -webkit-font-smoothing:antialiased;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  header{padding:24px 32px 18px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  header h1{margin:0; font-size:20px; font-weight:700; letter-spacing:0.5px;}
+  header h1 span{color:var(--accent);}
+  header p{margin:4px 0 0; color:var(--sub); font-size:13px;}
+  .layout{display:grid; grid-template-columns:320px 1fr; gap:0; min-height:calc(100vh - 78px);}
+  .sidebar{border-right:1px solid var(--line); padding:18px; overflow-y:auto; background:var(--panel);}
+  .group{margin-bottom:16px; border:1px solid var(--line); border-radius:10px; padding:12px; background:var(--panel2);}
+  .group h3{margin:0 0 10px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:600;}
+  .row{display:flex; gap:8px; margin-bottom:8px;}
+  .field{flex:1; min-width:0;}
+  .field label{display:block; font-size:10.5px; color:var(--sub); margin-bottom:3px;}
+  .field input, .field select{width:100%; background:#ffffff; border:1px solid var(--line); color:var(--text); border-radius:6px; padding:6px 8px; font-size:12.5px; font-family:'JetBrains Mono',monospace;}
+  .field input:focus, .field select:focus{outline:1px solid var(--accent); border-color:var(--accent);}
+  .formula{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--accent2); background:#ffffff; border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-top:6px;}
+  .filebtn{display:block; width:100%; text-align:center; padding:10px; border:1px dashed var(--line); border-radius:8px; color:var(--sub); font-size:12.5px; cursor:pointer; margin-bottom:10px;}
+  .filebtn:hover{border-color:var(--accent); color:var(--accent);}
+  input[type=file]{display:none;}
+  .runbtn{width:100%; padding:11px; border:none; border-radius:8px; background:var(--accent); color:#ffffff; font-weight:700; font-size:13px; cursor:pointer; letter-spacing:0.3px;}
+  .runbtn:disabled{background:#c7ccd3; color:#8a90999a; cursor:not-allowed;}
+  .runbtn:hover:not(:disabled){filter:brightness(1.08);}
+  #grid-preview{display:grid; gap:2px; margin-top:10px;}
+  .cell{width:100%; aspect-ratio:1; border-radius:2px; background:#e9ecf1;}
+  .cell.ok{background:var(--accent);}
+  .cell.missing{background:var(--danger);}
+  #log{margin-top:12px; font-size:11px; color:var(--sub); max-height:120px; overflow-y:auto; border-top:1px solid var(--line); padding-top:8px; line-height:1.6;}
+  .log-err{color:var(--danger);}
+  .log-ok{color:var(--accent);}
+  main{padding:18px 24px;}
+  .toolbar{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+  .toolbar .spacer{flex:1;}
+  .btn{padding:7px 13px; border:1px solid var(--line); background:#ffffff; color:var(--sub); border-radius:7px; font-size:12px; cursor:pointer; font-weight:600;}
+  .btn:hover{color:var(--accent); border-color:var(--accent);}
+  .btn.active{color:#fff; background:var(--accent); border-color:var(--accent);}
+  .maps-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:22px;}
+  .mapcard{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px;}
+  .mapcard .head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .mapcard .head h4{margin:0; font-size:12.5px; font-weight:600;}
+  .mapcard .head .mini{font-size:11px; padding:4px 8px;}
+  .mapplot{height:380px;}
+  .crosswrap{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px;}
+  .controlsline{display:flex; gap:14px; align-items:center; margin-bottom:12px; flex-wrap:wrap; font-size:12px; color:var(--sub);}
+  .controlsline label{font-weight:600; color:var(--text);}
+  .crossplot{height:380px;}
+  .empty{display:flex; align-items:center; justify-content:center; height:340px; color:var(--sub); font-size:13px; border:1px dashed var(--line); border-radius:10px;}
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; background:#ffffff; border:1px solid var(--line); font-size:10.5px; color:var(--sub); margin-left:8px;}
+  input[type=checkbox]{accent-color:var(--accent);}
+  @media (max-width:1100px){
+    .maps-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr;}
+    .sidebar{border-right:none; border-bottom:1px solid var(--line);}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>RAMAN <span>Xc</span> MAPPER</h1>
+    <p>a-Si / c-Si 피크 맵 + despike + 결정성 분율 Xc 매핑</p>
+  </div>
+  <div class="badge mono" id="statusBadge">파일 대기 중</div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+
+    <div class="group">
+      <h3>Scan Grid</h3>
+      <div class="row">
+        <div class="field"><label>nkx</label><input type="number" id="nkx" value="25"></div>
+        <div class="field"><label>nky</label><input type="number" id="nky" value="25"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>dx (µm)</label><input type="number" id="dx" value="2"></div>
+        <div class="field"><label>dy (µm)</label><input type="number" id="dy" value="2"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Spectral Bands</h3>
+      <div class="row">
+        <div class="field"><label>offset r0</label><input type="number" id="r0" value="260"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>a-Si min</label><input type="number" id="ramin" value="480"></div>
+        <div class="field"><label>a-Si max</label><input type="number" id="ramax" value="490"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>c-Si min</label><input type="number" id="rcmin" value="510"></div>
+        <div class="field"><label>c-Si max</label><input type="number" id="rcmax" value="530"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Despike (median filter)</h3>
+      <div class="row">
+        <div class="field"><label>window</label><input type="number" id="dwin" value="3"></div>
+        <div class="field"><label>tau (σ)</label><input type="number" id="dtau" value="3.5" step="0.1"></div>
+        <div class="field"><label>max iter</label><input type="number" id="diter" value="2"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Crystalline Fraction</h3>
+      <div class="row">
+        <div class="field"><label>α (a-Si 보정계수)</label><input type="number" id="alpha" value="0.8" step="0.05"></div>
+      </div>
+      <div class="formula">Xc = Ic / (Ic + α·Ia)<br>Ia,Ic = 밴드 내 trapz 적분 면적</div>
+    </div>
+
+    <div class="group">
+      <h3>Files</h3>
+      <label class="filebtn" for="fileInput" id="filebtnLabel">.txt 스펙트럼 파일 선택 (여러 개)</label>
+      <input type="file" id="fileInput" multiple accept=".txt">
+      <div id="grid-preview"></div>
+      <div id="log"></div>
+    </div>
+
+    <button class="runbtn" id="runBtn" disabled>PROCESS</button>
+
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <button class="btn" id="colorModeBtn">색상 스케일: 개별 (a-Si / c-Si 각각 min-max)</button>
+      <select id="paletteSel" class="btn" style="padding:7px 10px;">
+        <option value="turbo">Turbo (기본)</option>
+        <option value="viridis">Viridis (차분)</option>
+        <option value="cividis">Cividis (색각 안전)</option>
+        <option value="slate">Slate (단색 블루)</option>
+        <option value="ember">Ember (단색 브라운)</option>
+        <option value="blues">Blues</option>
+        <option value="greys">Greys (흑백)</option>
+      </select>
+      <label style="display:flex; align-items:center; gap:5px; font-size:12px; color:var(--sub);">
+        <input type="checkbox" id="reverseScale"> 색상 반전
+      </label>
+      <span class="spacer"></span>
+      <button class="btn" id="saveAllBtn">전체 이미지 저장</button>
+    </div>
+
+    <div class="maps-grid" id="mapsGrid">
+      <div class="mapcard">
+        <div class="head"><h4>a-Si peak map</h4><button class="btn mini" data-reset="plot-asi">리셋</button></div>
+        <div id="plot-asi" class="mapplot"></div>
+      </div>
+      <div class="mapcard">
+        <div class="head"><h4>c-Si peak map</h4><button class="btn mini" data-reset="plot-csi">리셋</button></div>
+        <div id="plot-csi" class="mapplot"></div>
+      </div>
+      <div class="mapcard">
+        <div class="head"><h4 id="xcTitle">Xc map</h4><button class="btn mini" data-reset="plot-xc">리셋</button></div>
+        <div id="plot-xc" class="mapplot"></div>
+      </div>
+    </div>
+
+    <div class="crosswrap">
+      <div class="controlsline">
+        <label>Cross-section</label>
+        <select id="crossMap">
+          <option value="c">c-Si</option>
+          <option value="a">a-Si</option>
+          <option value="xc">Xc</option>
+        </select>
+        <select id="crossAxis">
+          <option value="x">X-cut (세로 프로파일)</option>
+          <option value="y">Y-cut (가로 프로파일)</option>
+        </select>
+        <span>위치 (µm)</span>
+        <input type="range" id="crossPos" min="0" max="100" value="30" step="1">
+        <span class="mono" id="crossPosVal">30 µm</span>
+        <label style="display:flex; align-items:center; gap:5px; font-weight:400;">
+          <input type="checkbox" id="showCutLine" checked> 맵에 절단선 표시
+        </label>
+      </div>
+      <div id="plot-cross" class="crossplot"></div>
+    </div>
+
+    <div class="crosswrap" style="margin-top:18px;">
+      <div class="controlsline">
+        <label>α 민감도 분석</label>
+        <span style="font-weight:400;">α를 바꿔도 공간 순위는 불변 — 바뀌는 건 절대값과 대비뿐</span>
+        <span class="spacer" style="flex:1;"></span>
+        <button class="btn" id="runAlphaBtn">분석 실행</button>
+      </div>
+      <div id="plot-alpha" style="height:320px;"></div>
+      <div class="controlsline" style="margin-top:14px; border-top:1px solid var(--line); padding-top:14px;">
+        <label>외부 측정값으로 α 역산</label>
+        <span style="font-weight:400;">ellipsometer/XRD로 구한 이 시료의 평균 결정성</span>
+        <input type="number" id="extXc" value="70" step="1" style="width:80px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:'JetBrains Mono',monospace;">
+        <span>%</span>
+        <button class="btn" id="solveAlphaBtn">α 역산</button>
+        <span class="mono" id="alphaResult" style="color:var(--accent2); font-weight:600;"></span>
+      </div>
+      <div id="alphaNote" style="font-size:11.5px; color:var(--sub); line-height:1.7; margin-top:10px;"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const PALETTES = {
+  turbo: [[0.0,'#30123b'],[0.1,'#4453c9'],[0.2,'#3e8ff3'],[0.3,'#1fc0dd'],
+          [0.4,'#20e4a8'],[0.5,'#82f560'],[0.6,'#c6ef34'],[0.7,'#fabf2c'],
+          [0.8,'#fb7d20'],[0.9,'#e2431a'],[1.0,'#7a0403']],
+  viridis: 'Viridis',
+  cividis: 'Cividis',
+  greys:   'Greys',
+  blues:   'Blues',
+  slate:   [[0.0,'#f2f4f7'],[0.25,'#b9c6d6'],[0.5,'#7d95b0'],[0.75,'#456185'],[1.0,'#16283f']],
+  ember:   [[0.0,'#faf6f0'],[0.25,'#e5c9a3'],[0.5,'#cf9457'],[0.75,'#a25c22'],[1.0,'#5c2b06']]
+};
+let paletteKey = 'turbo';
+let reverseScale = false;
+function currentScale(){
+  const p = PALETTES[paletteKey];
+  if(typeof p === 'string') return reverseScale ? p + '_r' : p;
+  return reverseScale ? p.map(([t,c],i,arr)=>[t, arr[arr.length-1-i][1]]) : p;
+}
+
+let uploaded = {};
+let N = 0, nkx = 25, nky = 25;
+let state = null;
+let colorMode = 'individual'; // 'individual' | 'common'
+
+function log(msg, cls){
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function linspace(a,b,n){
+  if(n<=1) return [a];
+  const out = new Array(n);
+  const step = (b-a)/(n-1);
+  for(let i=0;i<n;i++) out[i] = a + step*i;
+  return out;
+}
+
+function trapz(x,y){
+  let s=0;
+  for(let i=0;i<x.length-1;i++) s += (y[i]+y[i+1])/2*(x[i+1]-x[i]);
+  return Math.abs(s);
+}
+function bandMax(xArr,yArr,lo,hi){
+  let m = -Infinity, found=false;
+  for(let i=0;i<xArr.length;i++){ if(xArr[i]>=lo && xArr[i]<=hi){ found=true; if(yArr[i]>m) m=yArr[i]; } }
+  return found ? m : 0;
+}
+function bandTrapz(xArr,yArr,lo,hi){
+  const xs=[], ys=[];
+  for(let i=0;i<xArr.length;i++){ if(xArr[i]>=lo && xArr[i]<=hi){ xs.push(xArr[i]); ys.push(yArr[i]); } }
+  if(xs.length<2) return 0;
+  return trapz(xs,ys);
+}
+
+function medfilt2Symmetric(C, win){
+  const ny=C.length, nx=C[0].length, half=Math.floor(win/2);
+  const out = Array.from({length:ny},()=>new Array(nx).fill(0));
+  for(let i=0;i<ny;i++){
+    for(let j=0;j<nx;j++){
+      const vals=[];
+      for(let di=-half; di<=half; di++){
+        for(let dj=-half; dj<=half; dj++){
+          let ii=i+di, jj=j+dj;
+          if(ii<0) ii=-ii-1; if(ii>=ny) ii=2*ny-ii-1;
+          if(jj<0) jj=-jj-1; if(jj>=nx) jj=2*nx-jj-1;
+          ii=Math.min(Math.max(ii,0),ny-1); jj=Math.min(Math.max(jj,0),nx-1);
+          vals.push(C[ii][jj]);
+        }
+      }
+      vals.sort((a,b)=>a-b);
+      out[i][j]=vals[Math.floor(vals.length/2)];
+    }
+  }
+  return out;
+}
+function despikeMap(Cin, win, tau, maxIter){
+  let C = Cin.map(r=>r.slice());
+  const ny=C.length, nx=C[0].length;
+  for(let it=0; it<maxIter; it++){
+    const M = medfilt2Symmetric(C, win);
+    const R = C.map((row,i)=>row.map((v,j)=>v-M[i][j]));
+    const MAD = medfilt2Symmetric(R.map(row=>row.map(Math.abs)), win).map(row=>row.map(v=>v+Number.EPSILON));
+    const Sig = MAD.map(row=>row.map(v=>1.4826*v));
+    let any=false;
+    for(let i=0;i<ny;i++) for(let j=0;j<nx;j++){
+      if(Math.abs(R[i][j]) > tau*Sig[i][j]){ C[i][j]=M[i][j]; any=true; }
+    }
+    if(!any) break;
+  }
+  return C;
+}
+
+// ---------- File handling ----------
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files);
+  document.getElementById('log').innerHTML='';
+  uploaded = {};
+  document.getElementById('filebtnLabel').textContent = files.length + '개 파일 로드됨';
+  log(`${files.length}개 파일 파싱 중...`);
+  for(const f of files){
+    const m = f.name.match(/(\d+)(?=\.\w+$)/);
+    if(!m){ log(`⚠ 파일명에서 번호를 찾지 못함: ${f.name}`, 'log-err'); continue; }
+    const idx = parseInt(m[1],10);
+    const text = await f.text();
+    const lines = text.split(/\r?\n/);
+    const x=[], y=[];
+    for(const ln of lines){
+      const parts = ln.trim().split(/[\s,\t]+/);
+      if(parts.length<2) continue;
+      const a=parseFloat(parts[0]), b=parseFloat(parts[1]);
+      if(!isNaN(a) && !isNaN(b)){ x.push(a); y.push(b); }
+    }
+    if(x.length===0){ log(`⚠ 숫자 데이터 없음: ${f.name}`, 'log-err'); continue; }
+    uploaded[idx] = {x,y,name:f.name};
+  }
+  log(`${Object.keys(uploaded).length}개 파일 매칭 완료`, 'log-ok');
+  refreshGridPreview();
+});
+
+function refreshGridPreview(){
+  nkx = parseInt(document.getElementById('nkx').value,10);
+  nky = parseInt(document.getElementById('nky').value,10);
+  N = nkx*nky;
+  const grid = document.getElementById('grid-preview');
+  grid.style.gridTemplateColumns = `repeat(${nkx}, 1fr)`;
+  grid.innerHTML='';
+  let missing=0;
+  for(let idx=1; idx<=N; idx++){
+    const c = document.createElement('div');
+    c.className = 'cell ' + (uploaded[idx] ? 'ok' : 'missing');
+    c.title = `#${idx}` + (uploaded[idx] ? ` — ${uploaded[idx].name}` : ' — 누락');
+    if(!uploaded[idx]) missing++;
+    grid.appendChild(c);
+  }
+  document.getElementById('runBtn').disabled = (missing>0 || N===0);
+  document.getElementById('statusBadge').textContent = missing>0 ? `${missing}개 파일 누락 (총 ${N})` : `${N}개 파일 준비 완료`;
+  if(missing>0) log(`⚠ ${missing}개 파일이 grid(${nkx}×${nky}=${N})에 대해 누락됨`, 'log-err');
+}
+['nkx','nky'].forEach(id=>document.getElementById(id).addEventListener('input', refreshGridPreview));
+
+// ---------- Processing pipeline ----------
+document.getElementById('runBtn').addEventListener('click', ()=>{
+  const dx=+document.getElementById('dx').value, dy=+document.getElementById('dy').value;
+  const r0=+document.getElementById('r0').value;
+  const ramin=+document.getElementById('ramin').value, ramax=+document.getElementById('ramax').value;
+  const rcmin=+document.getElementById('rcmin').value, rcmax=+document.getElementById('rcmax').value;
+  const dwin=+document.getElementById('dwin').value, dtau=+document.getElementById('dtau').value, diter=+document.getElementById('diter').value;
+  const alpha=+document.getElementById('alpha').value;
+
+  const Lx=dx*nkx, Ly=dy*nky;
+  const nx = linspace(0,Lx,nkx), ny = linspace(0,Ly,nky);
+
+  const data_a = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const data_c = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const ia_map = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const ic_map = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const idxGrid = Array.from({length:nky},()=>new Array(nkx).fill(0));
+
+  // 실측 이미지가 raster 순번(1=좌상단...N=우하단) 대비 점대칭(좌우+상하 반전)으로 확인됨
+  // → kfile = N - rasterIndex + 1 로 전 맵에 동일하게 보정 (a-Si/c-Si/Xc 모두 동일 변환만 적용, 추가 회전 없음)
+  for(let kyi=1; kyi<=nky; kyi++){
+    for(let kxi=1; kxi<=nkx; kxi++){
+      const rasterIndex = (kyi-1)*nkx + kxi;
+      const kfile = N - rasterIndex + 1;
+      const raw = uploaded[kfile];
+      const spec = raw.y.map(v=>v-r0);
+      data_a[kyi-1][kxi-1] = bandMax(raw.x, spec, ramin, ramax);
+      data_c[kyi-1][kxi-1] = bandMax(raw.x, spec, rcmin, rcmax);
+      ia_map[kyi-1][kxi-1] = bandTrapz(raw.x, spec, ramin, ramax);
+      ic_map[kyi-1][kxi-1] = bandTrapz(raw.x, spec, rcmin, rcmax);
+      idxGrid[kyi-1][kxi-1] = kfile;
+    }
+  }
+
+  const data_a_d = despikeMap(data_a, dwin, dtau, diter);
+  const data_c_d = despikeMap(data_c, dwin, dtau, diter);
+  const ia_d = despikeMap(ia_map, dwin, dtau, diter);
+  const ic_d = despikeMap(ic_map, dwin, dtau, diter);
+
+  let Xc = ic_d.map((row,i)=>row.map((v,j)=> v/(v+alpha*ia_d[i][j]+Number.EPSILON) ));
+  Xc = despikeMap(Xc, dwin, dtau, diter);
+  Xc = Xc.map(row=>row.map(v=>Math.min(Math.max(v,0),1)));
+
+  state = {nx, ny, data_a:data_a_d, data_c:data_c_d, Xc, idxGrid, alpha, ia:ia_d, ic:ic_d};
+
+  log('처리 완료 ✓', 'log-ok');
+  document.getElementById('statusBadge').textContent = '처리 완료';
+  document.getElementById('xcTitle').textContent = `Xc map (α=${alpha.toFixed(2)})`;
+
+  renderMaps();
+  buildCrossSection();
+});
+
+function autoMax(M){ let m=0; M.forEach(r=>r.forEach(v=>{ if(v>m) m=v; })); return m || 1; }
+
+function renderMaps(){
+  let aMax = autoMax(state.data_a), cMax = autoMax(state.data_c);
+  if(colorMode==='common'){ const common = Math.max(aMax,cMax); aMax = common; cMax = common; }
+  plotHeatmap('plot-asi', state.nx, state.ny, state.data_a, state.idxGrid, 0, aMax);
+  plotHeatmap('plot-csi', state.nx, state.ny, state.data_c, state.idxGrid, 0, cMax);
+  plotHeatmap('plot-xc', state.nx, state.ny, state.Xc, state.idxGrid, 0, 1);
+}
+
+document.getElementById('paletteSel').addEventListener('change', (e)=>{
+  paletteKey = e.target.value;
+  if(state) renderMaps();
+});
+document.getElementById('reverseScale').addEventListener('change', (e)=>{
+  reverseScale = e.target.checked;
+  if(state) renderMaps();
+});
+
+document.getElementById('colorModeBtn').addEventListener('click', ()=>{
+  colorMode = colorMode==='individual' ? 'common' : 'individual';
+  document.getElementById('colorModeBtn').textContent = colorMode==='individual'
+    ? '색상 스케일: 개별 (a-Si / c-Si 각각 min-max)'
+    : '색상 스케일: 공통 (a-Si / c-Si 동일 범위)';
+  document.getElementById('colorModeBtn').classList.toggle('active', colorMode==='common');
+  if(state) renderMaps();
+});
+
+function plotHeatmap(divId, xArr, yArr, Z, idxGrid, zmin, zmax){
+  const trace = {
+    z: Z, x: xArr, y: yArr, type:'heatmap',
+    colorscale: currentScale(), zmin, zmax,
+    customdata: idxGrid,
+    hovertemplate: 'x: %{x:.1f} µm<br>y: %{y:.1f} µm<br>#%{customdata}<extra></extra>',
+    colorbar:{tickfont:{color:'#6b7484', family:'JetBrains Mono'}}
+  };
+  const layout = {
+    paper_bgcolor:'#f7f8fa', plot_bgcolor:'#f7f8fa',
+    font:{color:'#6b7484', family:'JetBrains Mono', size:11},
+    xaxis:{title:'X (µm)', gridcolor:'#e5e8ee'},
+    yaxis:{title:'Y (µm)', gridcolor:'#e5e8ee', scaleanchor:'x', autorange:'reversed'},
+    margin:{t:10,l:50,r:10,b:40},
+    shapes:[]
+  };
+  Plotly.newPlot(divId, [trace], layout, {displaylogo:false, responsive:true, scrollZoom:true});
+}
+
+document.querySelectorAll('[data-reset]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const id = btn.dataset.reset;
+    Plotly.relayout(id, {'xaxis.autorange':true, 'yaxis.autorange':true});
+  });
+});
+
+// ---------- Cross-section ----------
+function buildCrossSection(){
+  const Lx = state.nx[state.nx.length-1], Ly = state.ny[state.ny.length-1];
+  const axis = document.getElementById('crossAxis').value;
+  const slider = document.getElementById('crossPos');
+  slider.max = axis==='x' ? Lx : Ly;
+  slider.value = Math.round((axis==='x'?Lx:Ly)/2);
+  drawCrossSection();
+}
+document.getElementById('crossAxis').addEventListener('change', buildCrossSection);
+document.getElementById('crossMap').addEventListener('change', drawCrossSection);
+document.getElementById('crossPos').addEventListener('input', drawCrossSection);
+document.getElementById('showCutLine').addEventListener('change', drawCrossSection);
+
+function nearestIdx(arr, v){
+  let bi=0, bd=Infinity;
+  arr.forEach((a,i)=>{ const d=Math.abs(a-v); if(d<bd){bd=d;bi=i;} });
+  return bi;
+}
+
+const mapDivFor = {a:'plot-asi', c:'plot-csi', xc:'plot-xc'};
+
+function clearCutLines(){
+  Object.values(mapDivFor).forEach(id=>{
+    const el = document.getElementById(id);
+    if(el && el.layout) Plotly.relayout(id, {shapes:[]});
+  });
+}
+
+function drawCrossSection(){
+  if(!state) return;
+  const which = document.getElementById('crossMap').value;
+  const axis = document.getElementById('crossAxis').value;
+  const pos = +document.getElementById('crossPos').value;
+  const showLine = document.getElementById('showCutLine').checked;
+  document.getElementById('crossPosVal').textContent = pos + ' µm';
+  const M = which==='a' ? state.data_a : which==='c' ? state.data_c : state.Xc;
+
+  let xline, yline, xlabel;
+  if(axis==='x'){
+    const kxIdx = nearestIdx(state.nx, pos);
+    yline = state.ny.map((_,i)=>M[i][kxIdx]);
+    xline = state.ny;
+    xlabel = 'Y (µm)';
+  } else {
+    const kyIdx = nearestIdx(state.ny, pos);
+    yline = state.nx.map((_,j)=>M[kyIdx][j]);
+    xline = state.nx;
+    xlabel = 'X (µm)';
+  }
+
+  Plotly.newPlot('plot-cross', [{
+    x:xline, y:yline, mode:'lines', line:{color:'#c97a12', width:2}
+  }], {
+    paper_bgcolor:'#f7f8fa', plot_bgcolor:'#f7f8fa',
+    font:{color:'#6b7484', family:'JetBrains Mono', size:11},
+    xaxis:{title:xlabel, gridcolor:'#e5e8ee'},
+    yaxis:{title: which==='xc' ? 'Xc' : 'Intensity (a.u.)', gridcolor:'#e5e8ee'},
+    margin:{t:10,l:55,r:20,b:40}
+  }, {displaylogo:false, responsive:true, scrollZoom:true});
+
+  clearCutLines();
+  if(showLine){
+    const Lx = state.nx[state.nx.length-1], Ly = state.ny[state.ny.length-1];
+    const shape = axis==='x'
+      ? {type:'line', x0:pos, x1:pos, y0:0, y1:Ly, line:{color:'#c97a12', width:2, dash:'dash'}}
+      : {type:'line', x0:0, x1:Lx, y0:pos, y1:pos, line:{color:'#c97a12', width:2, dash:'dash'}};
+    Plotly.relayout(mapDivFor[which], {shapes:[shape]});
+  }
+}
+
+// ---------- Save all images ----------
+document.getElementById('saveAllBtn').addEventListener('click', async ()=>{
+  if(!state){ log('먼저 PROCESS를 실행하세요', 'log-err'); return; }
+  const targets = [
+    {id:'plot-asi', name:'1_a-Si'},
+    {id:'plot-csi', name:'2_c-Si'},
+    {id:'plot-xc',  name:'3_Xc'},
+    {id:'plot-cross', name:'4_cross-section'}
+  ];
+  for(const t of targets){
+    const el = document.getElementById(t.id);
+    if(!el || !el.layout) continue;
+    const url = await Plotly.toImage(t.id, {format:'png', width:1000, height:750});
+    const a = document.createElement('a');
+    a.href = url; a.download = t.name + '.png'; a.click();
+    await new Promise(r=>setTimeout(r, 350));
+  }
+});
+
+// ---------- α sensitivity & back-calculation ----------
+function xcFromAlpha(a){
+  const out = [];
+  for(let i=0;i<state.ic.length;i++){
+    for(let j=0;j<state.ic[0].length;j++){
+      const ic = state.ic[i][j], ia = state.ia[i][j];
+      out.push(Math.min(Math.max(ic/(ic + a*ia + Number.EPSILON),0),1));
+    }
+  }
+  return out;
+}
+function meanOf(arr){ return arr.reduce((s,v)=>s+v,0)/arr.length; }
+
+document.getElementById('runAlphaBtn').addEventListener('click', ()=>{
+  if(!state){ log('먼저 PROCESS를 실행하세요','log-err'); return; }
+  const alphas=[], means=[], p10=[], p90=[];
+  for(let a=0.1; a<=2.001; a+=0.05){
+    const v = xcFromAlpha(a).sort((x,y)=>x-y);
+    alphas.push(+a.toFixed(2));
+    means.push(meanOf(v));
+    p10.push(v[Math.floor(v.length*0.10)]);
+    p90.push(v[Math.floor(v.length*0.90)]);
+  }
+  Plotly.newPlot('plot-alpha', [
+    {x:alphas, y:p90, mode:'lines', name:'상위 10% 지점', line:{color:'#9bb4cc', width:1.5, dash:'dot'}},
+    {x:alphas, y:means, mode:'lines', name:'맵 평균 Xc', line:{color:'#0f9d68', width:2.5}},
+    {x:alphas, y:p10, mode:'lines', name:'하위 10% 지점', line:{color:'#9bb4cc', width:1.5, dash:'dot'}}
+  ], {
+    paper_bgcolor:'#f7f8fa', plot_bgcolor:'#f7f8fa',
+    font:{color:'#6b7484', family:'JetBrains Mono', size:11},
+    xaxis:{title:'α', gridcolor:'#e5e8ee'},
+    yaxis:{title:'Xc', range:[0,1], gridcolor:'#e5e8ee'},
+    legend:{font:{size:10}, orientation:'h', y:-0.25},
+    margin:{t:10,l:55,r:20,b:60}
+  }, {displaylogo:false, responsive:true});
+
+  document.getElementById('alphaNote').innerHTML =
+    'α가 커질수록 Xc 절대값은 전체적으로 내려가지만, 상·하위 지점의 <b>상대 순서는 어떤 α에서도 바뀌지 않습니다</b> ' +
+    '(Xc = 1/(1+α·Ia/Ic) 가 Ic/Ia에 대해 단조증가). 따라서 "경계 부근에서 결정성이 변했다"는 공간적 해석은 α 선택과 무관하게 유효하고, ' +
+    'α에 의존하는 것은 절대 수치뿐입니다. α=1로 두면 보정 없는 Raman crystallinity factor φc = Ic/(Ic+Ia)가 되며, ' +
+    '이는 문헌 인용 없이 보고 가능한 값입니다.';
+});
+
+document.getElementById('solveAlphaBtn').addEventListener('click', ()=>{
+  if(!state){ log('먼저 PROCESS를 실행하세요','log-err'); return; }
+  const target = +document.getElementById('extXc').value / 100;
+  if(!(target>0 && target<1)){
+    document.getElementById('alphaResult').textContent = '0~100% 사이 값을 입력하세요';
+    return;
+  }
+  let lo=0.01, hi=20, mid;
+  if(meanOf(xcFromAlpha(lo)) < target || meanOf(xcFromAlpha(hi)) > target){
+    document.getElementById('alphaResult').textContent = '해당 범위에서 α 해 없음';
+    return;
+  }
+  for(let it=0; it<60; it++){
+    mid=(lo+hi)/2;
+    if(meanOf(xcFromAlpha(mid)) > target) lo=mid; else hi=mid;
+  }
+  document.getElementById('alphaResult').textContent = `α = ${mid.toFixed(3)}`;
+  document.getElementById('alpha').value = mid.toFixed(3);
+  document.getElementById('alphaNote').innerHTML =
+    `평균 Xc가 ${(target*100).toFixed(0)}%가 되도록 맞춘 α입니다. 이 값은 <b>이 시료·이 여기광 파장에 한정된 경험적 보정값</b>이며 ` +
+    `물리적 산란 단면적 비의 참값이 아닙니다. 논문에 쓸 때는 "외부 측정값(SE/XRD)에 캘리브레이션한 값"이라고 명시하세요. ` +
+    `PROCESS를 다시 눌러 이 α로 맵을 갱신할 수 있습니다.`;
+});
+
+refreshGridPreview();
+</script>
+</body>
+</html>

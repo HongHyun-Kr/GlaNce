@@ -1,0 +1,1068 @@
+<title>SEMGrainMapper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: instrument console — micrograph viewport (always dark, like an SEM monitor) left, parameter/result rail right */
+[hidden] { display: none !important; }
+:root {
+  --bg: #f3f4f2;
+  --panel: #fbfbfa;
+  --line: #d9dcd6;
+  --fg: #16191a;
+  --fg2: #4d5452;
+  --muted: #7d8481;
+  --accent: #1f6f8b;
+  --accent-fg: #ffffff;
+  --accent-soft: #dcebf0;
+  --gb: #ffb21a;
+  --stage: #0d0f10;
+  --stage-fg: #e9ecea;
+  --warn: #b25e00;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-disp: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121516; --panel: #191d1e; --line: #2c3334; --fg: #e8ecea; --fg2: #b4bcb9; --muted: #838c89;
+  --accent: #4fb0cf; --accent-fg: #0c1416; --accent-soft: #1b3640; --gb: #ffb21a; --stage: #08090a; --stage-fg: #e9ecea; --warn: #e89a3c;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121516; --panel: #191d1e; --line: #2c3334; --fg: #e8ecea; --fg2: #b4bcb9; --muted: #838c89;
+  --accent: #4fb0cf; --accent-fg: #0c1416; --accent-soft: #1b3640; --gb: #ffb21a; --stage: #08090a; --stage-fg: #e9ecea; --warn: #e89a3c;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  color-scheme: dark; }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 13px/1.45 var(--font-ui); }
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr; padding-inline: 16px; padding-block: 10px 14px; gap: 10px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+.mark { font: 600 20px/1 var(--font-disp); letter-spacing: .01em; }
+.mark span { color: var(--accent); }
+.databar { font: 12px var(--font-mono); color: var(--fg2); display: flex; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.databar b { font-weight: 500; color: var(--fg); }
+.status { margin-left: auto; font: 12px var(--font-mono); padding: 3px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.status.busy { background: var(--fg); color: var(--bg); }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; min-height: 0; }
+
+/* viewer */
+.stage { position: relative; background: var(--stage); border-radius: 6px; overflow: hidden; min-height: 420px; touch-action: none; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tools { position: absolute; left: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 3; }
+.tools button { width: 40px; height: 34px; border: 1px solid #2b3133; background: rgba(20,23,24,.86); color: var(--stage-fg); border-radius: 5px; cursor: pointer; font: 500 11px var(--font-mono); position: relative; }
+.tools button:hover { border-color: #56605f; }
+.tools button[aria-pressed="true"] { background: var(--gb); color: #141414; border-color: var(--gb); }
+.tools .sep { height: 6px; }
+.tools button .k { position: absolute; right: 2px; bottom: 0; font-size: 8px; opacity: .6; }
+.viewbar { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 3; flex-wrap: wrap; justify-content: flex-end; }
+.seg { display: inline-flex; border: 1px solid #2b3133; border-radius: 5px; overflow: hidden; background: rgba(20,23,24,.86); }
+.seg button { border: 0; background: transparent; color: #aeb6b3; padding: 6px 9px; cursor: pointer; font: 500 11px var(--font-mono); }
+.seg button[aria-pressed="true"] { background: #e9ecea; color: #111; }
+.card .seg button { color: var(--fg2); }
+.card .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.hud { position: absolute; left: 60px; bottom: 10px; right: 10px; display: flex; gap: 10px; align-items: flex-end; justify-content: space-between; pointer-events: none; z-index: 3; }
+.hud .hint { font: 11px var(--font-mono); color: #aeb6b3; background: rgba(13,15,16,.8); padding: 4px 8px; border-radius: 4px; }
+.tip { position: absolute; z-index: 4; pointer-events: none; background: rgba(13,15,16,.92); color: #e9ecea; font: 11px/1.5 var(--font-mono); padding: 6px 8px; border-radius: 4px; border: 1px solid #353c3e; white-space: nowrap; }
+.drop { position: absolute; inset: 0; border: 2px dashed var(--gb); background: rgba(255,178,26,.08); display: grid; place-items: center; color: var(--gb); font: 500 14px var(--font-mono); z-index: 5; }
+
+/* rail */
+.rail { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.card h2 { margin: 0; font: 600 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fg2); display: flex; align-items: center; gap: 8px; }
+.card h2 .r { margin-left: auto; text-transform: none; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); }
+.row { display: grid; grid-template-columns: 96px minmax(0,1fr) 56px; align-items: center; gap: 8px; }
+.row label { color: var(--fg2); font-size: 12px; }
+.row output, .row .u { font: 12px var(--font-mono); color: var(--fg); text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=number], input[type=text], select { width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); font: 12px var(--font-mono); }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--bg); padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.btn:hover { border-color: var(--fg2); }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn:disabled { opacity: .45; cursor: default; }
+.chk { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg2); }
+.chk input { accent-color: var(--accent); }
+.sub { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.kpi { background: var(--panel); padding: 7px 8px; min-width: 0; }
+.kpi .l { font: 10.5px var(--font-mono); color: var(--muted); letter-spacing: .02em; }
+.kpi .v { font: 500 15px var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi .v small { font-size: 10.5px; color: var(--muted); font-weight: 400; }
+.gt { font: 11.5px var(--font-mono); color: var(--fg2); background: var(--accent-soft); border-radius: 4px; padding: 5px 8px; }
+.chart { position: relative; width: 100%; }
+.chart { flex: none; }
+.chart canvas { width: 100%; display: block; }
+.axis { display: grid; grid-template-columns: auto minmax(0,1fr) auto minmax(0,1fr); gap: 6px 8px; align-items: center; font-size: 12px; color: var(--fg2); }
+.axis input { padding: 4px 6px; }
+.cmp { width: 100%; border-collapse: collapse; font: 11.5px var(--font-mono); font-variant-numeric: tabular-nums; }
+.cmp td, .cmp th { padding: 4px 4px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.cmp th { color: var(--muted); font-weight: 400; }
+.cmp td:first-child, .cmp th:first-child { text-align: left; }
+.chip { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 2px; }
+.tbl { overflow-x: auto; }
+.toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 5px; font-size: 12.5px; z-index: 20; max-width: calc(100% - 32px); }
+@media (max-width: 900px) {
+  .app { height: auto; }
+  .main { grid-template-columns: minmax(0,1fr); }
+  .stage { height: 62vh; min-height: 360px; }
+  .rail { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header>
+    <div class="mark">SEM<span>Grain</span>Mapper</div>
+    <div class="databar" id="databar"></div>
+    <div class="status" id="status">Ready</div>
+  </header>
+  <div class="main">
+    <div class="stage" id="stage">
+      <canvas id="view"></canvas>
+      <div class="tools" id="tools">
+        <button data-tool="pan" title="Pan (V)">PAN<span class="k">V</span></button>
+        <button data-tool="roi" title="ROI 지정 (R)">ROI<span class="k">R</span></button>
+        <button data-tool="scale" title="Scale line (S)">SCL<span class="k">S</span></button>
+        <div class="sep"></div>
+        <button data-tool="draw" title="Boundary 그리기 (B)">+GB<span class="k">B</span></button>
+        <button data-tool="erase" title="Boundary 지우기 (E)">−GB<span class="k">E</span></button>
+        <button data-tool="seed" title="Seed 추가 = grain split (A)">SEED<span class="k">A</span></button>
+        <button data-tool="merge" title="두 grain 병합 (M)">MRG<span class="k">M</span></button>
+        <div class="sep"></div>
+        <button id="undo" title="Undo (Ctrl+Z)">UNDO</button>
+        <button id="fit" title="Fit (F)">FIT</button>
+      </div>
+      <div class="viewbar">
+        <div class="seg" id="vmode">
+          <button data-v="image">IMAGE</button>
+          <button data-v="overlay">GB</button>
+          <button data-v="grains">GRAIN</button>
+          <button data-v="ridge">RIDGE</button>
+        </div>
+      </div>
+      <div class="hud"><span class="hint" id="hint"></span><span class="hint" id="zoomlbl"></span></div>
+      <div class="tip" id="tip" hidden></div>
+      <div class="drop" id="drop" hidden>이미지를 놓으십시오 (TIF · PNG · JPG + Hitachi .txt)</div>
+    </div>
+
+    <aside class="rail">
+      <section class="card">
+        <h2>Source <span class="r" id="srcname"></span></h2>
+        <div class="btns">
+          <button class="btn pri" id="openBtn">Open image…</button>
+          <button class="btn" id="sampleBtn">Synthetic sample</button>
+          <button class="btn pri" id="procBtn" style="margin-left:auto">Process</button>
+          <input type="file" id="file" accept=".tif,.tiff,.png,.jpg,.jpeg,.bmp,.txt" multiple hidden>
+        </div>
+        <div class="row"><label for="nmpx">Pixel size</label><input type="number" id="nmpx" step="0.001" min="0.001"><span class="u">nm/px</span></div>
+        <div class="row"><label for="barlen" title="이미지 하단에 적힌 scale bar 값 (예: 2.00um, 5.00um)">Scale bar</label><input type="number" id="barlen" step="0.01" min="0.001" value="2.00"><span class="u">µm</span></div>
+        <div class="btns">
+          <button class="btn" id="detectBtn">Detect ticks</button>
+          <button class="btn" id="applyLineBtn" disabled>Apply scale line</button>
+        </div>
+        <p class="sub" id="scaleinfo"></p>
+      </section>
+
+      <section class="card">
+        <h2>Detection <button class="btn" id="autoBtn" style="margin-left:auto;padding:3px 9px;font:500 11px var(--font-mono);letter-spacing:.04em" title="이미지 로드 시 기본값으로 되돌립니다">AUTO</button></h2>
+        <div class="row"><label for="mode" title="Line: 경계가 선(crack/groove)으로 보임 · Contrast: grain마다 밝기가 달라 명암 차로 구분">GB type</label>
+          <select id="mode"><option value="line">Line · 선 경계</option><option value="contrast">Contrast · 명암 차</option></select><span></span></div>
+        <label class="chk" id="destripeRow" hidden><input type="checkbox" id="destripe" checked> Scan-line noise 제거</label>
+        <div class="row"><label for="pol">GB tone</label>
+          <select id="pol"><option value="dark">어두운 선 (Dark)</option><option value="bright">밝은 선 (Bright)</option><option value="both">둘 다 (Both)</option></select><span></span></div>
+        <div class="row"><label for="fres">Calc scale</label>
+          <select id="fres"><option value="1">1/1 · 정밀</option><option value="2">1/2 · 기본</option><option value="4">1/4 · 빠름</option></select><span></span></div>
+        <div class="row"><label for="sigma" title="검출할 경계선의 폭 (full-res px)">Line width</label><input type="range" id="sigma" min="1" max="8" step="0.2"><output id="sigmaO"></output></div>
+        <div class="row"><label for="L" title="이 길이 이상 이어진 선만 경계로 인정">Min line</label><input type="range" id="L" min="0" max="80" step="2"><output id="LO"></output></div>
+        <div class="row"><label for="hi" title="이 값 이상이면 확실한 경계">Thr high</label><input type="range" id="hi" min="0.1" max="0.95" step="0.01"><output id="hiO"></output></div>
+        <div class="row"><label for="lo" title="Thr high 경계에 이어진 경우만 경계로 인정">Thr low</label><input type="range" id="lo" min="0.02" max="0.9" step="0.01"><output id="loO"></output></div>
+        <div class="row"><label for="h" title="클수록 grain을 덜 쪼갬">Split h</label><input type="range" id="h" min="0.5" max="20" step="0.5"><output id="hO"></output></div>
+        <div class="row"><label for="merge" title="평균 경계 강도가 이 값보다 약하면 두 grain을 병합">Merge weak</label><input type="range" id="merge" min="0" max="0.6" step="0.01"><output id="mergeO"></output></div>
+        <div class="row"><label for="brush">Brush</label><input type="range" id="brush" min="1" max="20" step="1"><output id="brushO"></output></div>
+      </section>
+
+      <section class="card">
+        <h2>Grain size <span class="r" id="nlabel"></span><button class="btn" id="autoG" style="padding:3px 9px;font:500 11px var(--font-mono);letter-spacing:.04em" title="Bins, axis, Min ECD 자동 설정">AUTO</button></h2>
+        <div class="row"><label for="minA">Min ECD</label><input type="range" id="minA" min="0" max="300" step="5"><output id="minAO"></output></div>
+        <label class="chk"><input type="checkbox" id="edge" checked> ROI 경계에 닿은 grain 제외</label>
+        <div class="kpis" id="kpis"></div>
+        <div class="gt" id="gt" hidden></div>
+        <div class="btns">
+          <div class="seg" id="hmode" style="background:var(--bg);border-color:var(--line)">
+            <button data-h="n">Number</button><button data-h="a">Area</button>
+          </div>
+          <div class="row" style="grid-template-columns:auto minmax(0,1fr) 28px;flex:1;min-width:150px"><label for="bins">Bins</label><input type="range" id="bins" min="6" max="40" step="1"><output id="binsO"></output></div>
+        </div>
+        <div class="axis"><label for="xmax">X max (µm)</label><input type="number" id="xmax" step="0.05" min="0.05" placeholder="auto"><label for="ymax">Y max (%)</label><input type="number" id="ymax" step="1" min="1" placeholder="auto"></div>
+        <div class="chart"><canvas id="hist" data-h="230" style="height:230px"></canvas></div>
+      </section>
+
+      <section class="card">
+        <h2>Compare <span class="r" style="text-transform:none"><span class="seg" id="cmode" style="background:var(--bg);border-color:var(--line)"><button data-c="bar">Bars</button><button data-c="cdf">CDF</button></span></span></h2>
+        <div class="btns">
+          <input type="text" id="tag" placeholder="Sample tag (예: 340 mJ · 800 shot)" style="flex:1;min-width:140px">
+          <button class="btn pri" id="addCmp">Add</button>
+        </div>
+        <div class="tbl"><table class="cmp" id="cmpT"></table></div>
+        <div class="chart" id="cdfWrap" hidden><canvas id="cdf" data-h="210" style="height:210px"></canvas></div>
+      </section>
+
+      <section class="card">
+        <h2>Export</h2>
+        <div class="btns">
+          <button class="btn" id="exGrains">Grains CSV</button>
+          <button class="btn" id="exSum">Summary CSV</button>
+          <button class="btn" id="exPng">Overlay PNG</button>
+          <button class="btn" id="exHist">Histogram PNG</button>
+          <button class="btn" id="exCmp">Compare CSV</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+<script>
+// GrainBoundary core: valley/ridge detection -> line filter -> hysteresis -> EDT -> h-maxima markers -> seeded watershed -> merge -> stats
+const GB = (() => {
+  function downsample(src, W, H, f) {
+    if (f === 1) return { img: Float32Array.from(src), W, H };
+    const w = Math.floor(W / f), h = Math.floor(H / f), out = new Float32Array(w * h), n = f * f;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let j = 0; j < f; j++) { const r = (y * f + j) * W + x * f; for (let i = 0; i < f; i++) s += src[r + i]; }
+      out[y * w + x] = s / n;
+    }
+    return { img: out, W: w, H: h };
+  }
+
+  function gauss(img, W, H, s) {
+    if (s <= 0) return Float32Array.from(img);
+    const r = Math.ceil(3 * s), k = new Float32Array(2 * r + 1); let ks = 0;
+    for (let i = -r; i <= r; i++) { k[i + r] = Math.exp(-i * i / (2 * s * s)); ks += k[i + r]; }
+    for (let i = 0; i < k.length; i++) k[i] /= ks;
+    const tmp = new Float32Array(W * H), out = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) { const o = y * W;
+      for (let x = 0; x < W; x++) { let a = 0;
+        if (x >= r && x < W - r) for (let i = -r; i <= r; i++) a += k[i + r] * img[o + x + i];
+        else for (let i = -r; i <= r; i++) { let xx = x + i; xx = xx < 0 ? -xx : xx >= W ? 2 * W - xx - 2 : xx; a += k[i + r] * img[o + xx]; }
+        tmp[o + x] = a; } }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let a = 0;
+      if (y >= r && y < H - r) for (let i = -r; i <= r; i++) a += k[i + r] * tmp[(y + i) * W + x];
+      else for (let i = -r; i <= r; i++) { let yy = y + i; yy = yy < 0 ? -yy : yy >= H ? 2 * H - yy - 2 : yy; a += k[i + r] * tmp[yy * W + x]; }
+      out[y * W + x] = a; }
+    return out;
+  }
+
+  // Valley detector: Hessian gives the line normal; both sides along the normal must be brighter (dark line) or darker (bright line)
+  // than the centre. Rejects one-sided edges such as rims of bright particles.
+  function valley(img, W, H, scales, polarity, sSmooth) {
+    const S = gauss(img, W, H, sSmooth), R = new Float32Array(W * H);
+    const bil = (x, y) => { if (x < 0) x = 0; if (y < 0) y = 0; if (x > W - 1.001) x = W - 1.001; if (y > H - 1.001) y = H - 1.001;
+      const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, p = y0 * W + x0;
+      return (S[p] * (1 - fx) + S[p + 1] * fx) * (1 - fy) + (S[p + W] * (1 - fx) + S[p + W + 1] * fx) * fy; };
+    const pols = polarity === 'both' ? ['dark', 'bright'] : [polarity];
+    for (const s of scales) {
+      const G = gauss(img, W, H, s), d = 2 * s;
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        const p = y * W + x, c = G[p];
+        const xx = G[p - 1] - 2 * c + G[p + 1], yy = G[p - W] - 2 * c + G[p + W];
+        const xy = (G[p - W - 1] + G[p + W + 1] - G[p - W + 1] - G[p + W - 1]) / 4;
+        const m = (xx + yy) / 2, dd = Math.sqrt((xx - yy) * (xx - yy) / 4 + xy * xy);
+        for (const pl of pols) {
+          const lam = pl === 'dark' ? m + dd : m - dd;
+          if (pl === 'dark' ? lam <= 0 : lam >= 0) continue;
+          let ex = xy, ey = lam - xx; if (Math.abs(ex) + Math.abs(ey) < 1e-9) { ex = lam - yy; ey = xy; }
+          if (Math.abs(ex) + Math.abs(ey) < 1e-9) { ex = 1; ey = 0; }
+          const nn = Math.hypot(ex, ey); ex /= nn; ey /= nn;
+          const a = bil(x + ex * d, y + ey * d), b = bil(x - ex * d, y - ey * d), c0 = S[p];
+          const v = pl === 'dark' ? Math.min(a, b) - c0 : c0 - Math.max(a, b);
+          if (v > R[p]) R[p] = v;
+        }
+      }
+    }
+    return R;
+  }
+
+  // Oriented line-mean filter: max over nAng orientations of the mean along a segment of length L
+  function lineFilter(R, W, H, L, nAng) {
+    const out = new Float32Array(W * H), half = Math.floor(L / 2);
+    for (let a = 0; a < nAng; a++) {
+      const th = Math.PI * a / nAng, ux = Math.cos(th), uy = Math.sin(th);
+      const dxs = [], dys = []; for (let t = -half; t <= half; t++) { dxs.push(Math.round(t * ux)); dys.push(Math.round(t * uy)); }
+      const n = dxs.length, offs = new Int32Array(n); for (let k = 0; k < n; k++) offs[k] = dys[k] * W + dxs[k];
+      for (let y = 0; y < H; y++) { const inY = y >= half && y < H - half;
+        for (let x = 0; x < W; x++) { const p = y * W + x; let s = 0, c = 0;
+          if (inY && x >= half && x < W - half) { for (let k = 0; k < n; k++) s += R[p + offs[k]]; c = n; }
+          else for (let k = 0; k < n; k++) { const xx = x + dxs[k], yy = y + dys[k]; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; s += R[yy * W + xx]; c++; }
+          const v = s / c; if (v > out[p]) out[p] = v; } }
+    }
+    return out;
+  }
+
+  // robust normalisation: median -> 0, percentile pct -> 1
+  function normalize(R, mask, pct) {
+    const vals = []; const step = Math.max(1, Math.floor(R.length / 200000));
+    for (let i = 0; i < R.length; i += step) if (!mask || mask[i]) vals.push(R[i]);
+    vals.sort((a, b) => a - b);
+    const lo = vals[Math.floor((vals.length - 1) * 0.5)] || 0, hi = vals[Math.floor((vals.length - 1) * pct)] || 1, sc = hi - lo || 1;
+    const out = new Float32Array(R.length);
+    for (let i = 0; i < R.length; i++) out[i] = Math.min(Math.max((R[i] - lo) / sc, 0), 1);
+    return out;
+  }
+
+  function hysteresis(Rn, W, H, lo, hi, roi) {
+    const B = new Uint8Array(W * H), st = new Int32Array(W * H); let sp = 0;
+    for (let i = 0; i < B.length; i++) if (Rn[i] > hi && (!roi || roi[i])) { B[i] = 1; st[sp++] = i; }
+    while (sp) { const p = st[--sp], x = p % W, y = (p / W) | 0;
+      for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= H) continue;
+        for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= W) continue; const q = yy * W + xx;
+          if (!B[q] && Rn[q] > lo && (!roi || roi[q])) { B[q] = 1; st[sp++] = q; } } } }
+    return B;
+  }
+
+  function cc(bin, W, H) {
+    const lab = new Int32Array(W * H), stack = new Int32Array(W * H), sizes = [0]; let n = 0;
+    for (let p0 = 0; p0 < W * H; p0++) {
+      if (!bin[p0] || lab[p0]) continue; n++; let sp = 0, cnt = 0; stack[sp++] = p0; lab[p0] = n;
+      while (sp) { const p = stack[--sp]; cnt++; const x = p % W, y = (p / W) | 0;
+        for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= H) continue;
+          for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= W) continue; const q = yy * W + xx;
+            if (bin[q] && !lab[q]) { lab[q] = n; stack[sp++] = q; } } } }
+      sizes.push(cnt);
+    }
+    return { lab, n, sizes };
+  }
+
+  function removeSmall(B, W, H, minSize) {
+    const c = cc(B, W, H);
+    for (let i = 0; i < B.length; i++) if (B[i] && c.sizes[c.lab[i]] < minSize) B[i] = 0;
+    return B;
+  }
+
+  // exact Euclidean distance to nearest feature pixel (Felzenszwalb & Huttenlocher)
+  function edt(bin, W, H) {
+    const INF = 1e20, M = Math.max(W, H), f = new Float64Array(M), d = new Float64Array(M),
+      v = new Int32Array(M), z = new Float64Array(M + 1), D = new Float64Array(W * H);
+    const pass = (n) => { let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+      for (let q = 1; q < n; q++) {
+        let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+        while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+        k++; v[k] = q; z[k] = s; z[k + 1] = INF; }
+      k = 0; for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; } };
+    for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) f[y] = bin[y * W + x] ? 0 : INF; pass(H); for (let y = 0; y < H; y++) D[y * W + x] = d[y]; }
+    const out = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) { for (let x = 0; x < W; x++) f[x] = D[y * W + x]; pass(W); for (let x = 0; x < W; x++) out[y * W + x] = Math.sqrt(Math.min(d[x], 1e12)); }
+    return out;
+  }
+
+  // morphological reconstruction by dilation (Vincent hybrid algorithm)
+  function reconstruct(J, I, W, H) {
+    const N = W * H;
+    for (let i = 0; i < N; i++) if (J[i] > I[i]) J[i] = I[i];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x; let m = J[p];
+      if (x > 0 && J[p - 1] > m) m = J[p - 1];
+      if (y > 0) { const q = p - W; if (J[q] > m) m = J[q]; if (x > 0 && J[q - 1] > m) m = J[q - 1]; if (x < W - 1 && J[q + 1] > m) m = J[q + 1]; }
+      J[p] = Math.min(m, I[p]); }
+    const Q = new Int32Array(N); let qh = 0, qt = 0, qn = 0; const inq = new Uint8Array(N);
+    const enq = p => { if (!inq[p]) { Q[qt] = p; qt = (qt + 1) % N; qn++; inq[p] = 1; } };
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const p = y * W + x; let m = J[p];
+      if (x < W - 1 && J[p + 1] > m) m = J[p + 1];
+      if (y < H - 1) { const q = p + W; if (J[q] > m) m = J[q]; if (x < W - 1 && J[q + 1] > m) m = J[q + 1]; if (x > 0 && J[q - 1] > m) m = J[q - 1]; }
+      J[p] = Math.min(m, I[p]);
+      const jp = J[p];
+      if ((x < W - 1 && J[p + 1] < jp && J[p + 1] < I[p + 1]) ||
+        (y < H - 1 && ((J[p + W] < jp && J[p + W] < I[p + W]) || (x < W - 1 && J[p + W + 1] < jp && J[p + W + 1] < I[p + W + 1]) || (x > 0 && J[p + W - 1] < jp && J[p + W - 1] < I[p + W - 1])))) enq(p); }
+    while (qn) { const p = Q[qh]; qh = (qh + 1) % N; qn--; inq[p] = 0; const x = p % W, y = (p / W) | 0;
+      for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= H) continue;
+        for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= W || (!dx && !dy)) continue; const q = yy * W + xx;
+          if (J[q] < J[p] && I[q] !== J[q]) { J[q] = Math.min(J[p], I[q]); enq(q); } } } }
+    return J;
+  }
+
+  // grain seeds = h-maxima of the distance map (one seed per grain interior, robust to small gaps in the boundary)
+  function markers(D, W, H, h, minD, roi) {
+    const J = new Float32Array(D.length); for (let i = 0; i < D.length; i++) J[i] = D[i] - h;
+    reconstruct(J, D, W, H);
+    const m = new Uint8Array(D.length);
+    for (let i = 0; i < D.length; i++) if (D[i] - J[i] >= h - 1e-3 && D[i] >= minD && (!roi || roi[i])) m[i] = 1;
+    return cc(m, W, H);
+  }
+
+  // seeded watershed: priority flood on a quantized relief
+  function watershed(relief, lab, W, H, roi, L = 1024) {
+    const N = W * H, q = new Uint16Array(N);
+    for (let i = 0; i < N; i++) q[i] = Math.min(L - 1, Math.max(0, (relief[i] * (L - 1)) | 0));
+    const head = new Int32Array(L).fill(-1), tail = new Int32Array(L).fill(-1), next = new Int32Array(N);
+    const push = (p, lv) => { next[p] = -1; if (tail[lv] < 0) head[lv] = p; else next[tail[lv]] = p; tail[lv] = p; };
+    const inq = new Uint8Array(N);
+    for (let p = 0; p < N; p++) if (lab[p]) { push(p, q[p]); inq[p] = 1; }
+    let lv = 0;
+    while (lv < L) {
+      const p = head[lv]; if (p < 0) { lv++; continue; }
+      head[lv] = next[p]; if (head[lv] < 0) tail[lv] = -1;
+      const x = p % W, y = (p / W) | 0, l = lab[p];
+      for (let k = 0; k < 4; k++) {
+        const r = k === 0 ? (x > 0 ? p - 1 : -1) : k === 1 ? (x < W - 1 ? p + 1 : -1) : k === 2 ? (y > 0 ? p - W : -1) : (y < H - 1 ? p + W : -1);
+        if (r < 0 || lab[r] || inq[r] || (roi && !roi[r])) continue;
+        lab[r] = l; inq[r] = 1; push(r, Math.max(q[r], lv));
+      }
+    }
+    return lab;
+  }
+
+  function maxFilter(A, W, H) { const o = new Float32Array(A.length);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let m = 0;
+      for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= H) continue; for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= W) continue; const v = A[yy * W + xx]; if (v > m) m = v; } }
+      o[y * W + x] = m; } return o; }
+
+  // merge neighbouring grains whose shared boundary has mean strength < thr
+  function mergeWeak(lab, Rd, W, H, thr, protect) {
+    if (thr <= 0) return 0;
+    const pairs = new Map(), K = 1048576;
+    const add = (a, b, v) => { if (a === b || !a || !b) return; const k = a < b ? a * K + b : b * K + a; const e = pairs.get(k); if (e) { e[0] += v; e[1]++; } else pairs.set(k, [v, 1]); };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x, l = lab[p];
+      if (x < W - 1) add(l, lab[p + 1], Math.max(Rd[p], Rd[p + 1]));
+      if (y < H - 1) add(l, lab[p + W], Math.max(Rd[p], Rd[p + W])); }
+    let max = 0; for (let i = 0; i < lab.length; i++) if (lab[i] > max) max = lab[i];
+    const par = new Int32Array(max + 1); for (let i = 0; i <= max; i++) par[i] = i;
+    const find = a => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+    const list = [...pairs.entries()].map(([k, e]) => [Math.floor(k / K), k % K, e[0] / e[1]]).sort((a, b) => a[2] - b[2]);
+    let merged = 0;
+    for (const [a, b, m] of list) { if (m >= thr) break; if (protect && (protect.has(a) || protect.has(b))) continue; const ra = find(a), rb = find(b); if (ra !== rb) { par[rb] = ra; merged++; } }
+    for (let i = 0; i < lab.length; i++) if (lab[i]) lab[i] = find(lab[i]);
+    return merged;
+  }
+
+  function relabel(lab, N) {
+    let max = 0; for (let i = 0; i < N; i++) if (lab[i] > max) max = lab[i];
+    const map = new Int32Array(max + 1); let n = 0;
+    for (let i = 0; i < N; i++) { const l = lab[i]; if (l && !map[l]) map[l] = ++n; }
+    for (let i = 0; i < N; i++) lab[i] = lab[i] ? map[lab[i]] : 0;
+    return n;
+  }
+
+  // per-grain geometry. px = µm per working pixel; rect in working px
+  function grains(lab, n, W, H, px, rect) {
+    const A = new Float64Array(n + 1), sx = new Float64Array(n + 1), sy = new Float64Array(n + 1),
+      sxx = new Float64Array(n + 1), syy = new Float64Array(n + 1), sxy = new Float64Array(n + 1), edge = new Uint8Array(n + 1);
+    for (let y = rect.y0; y < rect.y1; y++) for (let x = rect.x0; x < rect.x1; x++) { const l = lab[y * W + x]; if (!l) continue;
+      A[l]++; sx[l] += x; sy[l] += y; sxx[l] += x * x; syy[l] += y * y; sxy[l] += x * y;
+      if (x === rect.x0 || y === rect.y0 || x === rect.x1 - 1 || y === rect.y1 - 1) edge[l] = 1; }
+    const out = [];
+    for (let l = 1; l <= n; l++) { const a = A[l]; if (!a) continue;
+      const cx = sx[l] / a, cy = sy[l] / a, cxx = sxx[l] / a - cx * cx + 1 / 12, cyy = syy[l] / a - cy * cy + 1 / 12, cxy = sxy[l] / a - cx * cy;
+      const m = (cxx + cyy) / 2, d = Math.sqrt((cxx - cyy) ** 2 / 4 + cxy * cxy), l1 = m + d, l2 = Math.max(m - d, 1e-9);
+      const ang = 0.5 * Math.atan2(2 * cxy, cxx - cyy) * 180 / Math.PI;
+      const area = a * px * px;
+      out.push({ id: l, areaPx: a, area, ecd: 2 * Math.sqrt(area / Math.PI), major: 4 * Math.sqrt(l1) * px, minor: 4 * Math.sqrt(l2) * px,
+        ar: Math.sqrt(l1 / l2), angle: -ang, cx, cy, edge: !!edge[l] }); }
+    return out;
+  }
+
+  // mean linear intercept along horizontal (x) and vertical (y) test lines
+  function intercept(lab, W, H, rect, px, spacing) {
+    let lenX = 0, cutX = 0, lenY = 0, cutY = 0;
+    for (let y = rect.y0; y < rect.y1; y += spacing) { let prev = 0;
+      for (let x = rect.x0; x < rect.x1; x++) { const l = lab[y * W + x]; if (!l) continue; if (prev && l !== prev) cutX++; prev = l; lenX++; } }
+    for (let x = rect.x0; x < rect.x1; x += spacing) { let prev = 0;
+      for (let y = rect.y0; y < rect.y1; y++) { const l = lab[y * W + x]; if (!l) continue; if (prev && l !== prev) cutY++; prev = l; lenY++; } }
+    return { Lx: cutX ? lenX * px / cutX : NaN, Ly: cutY ? lenY * px / cutY : NaN, nx: cutX, ny: cutY };
+  }
+
+  return { downsample, gauss, valley, lineFilter, normalize, hysteresis, cc, removeSmall, edt, reconstruct, markers, watershed, maxFilter, mergeWeak, relabel, grains, intercept };
+})();
+
+
+</script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+// ---------------- state ----------------
+const S = {
+  name: '', W0: 0, H0: 0, gray: null, base: null, nmpx: 1.98, sample: false, gt: null,
+  roi: null, p: { mode: 'line', pol: 'dark', f: 2, sigma: 2.4, L: 30, hi: 0.5, lo: 0.18, h: 4, merge: 0.15, minSeg: 160 },
+  minEcd: 80, edge: true, destripe: true, xmax: null, ymax: null, brush: 5, bins: 20, hmode: 'n', view: 'overlay', tool: 'pan',
+  edits: [], c: {}, res: null, dirty: true, cmode: 'bar', cmp: [], cmpSeq: 0, scaleLine: null, mergeA: null,
+};
+const T = { s: 1, ox: 0, oy: 0 };
+// defaults are defined in nm (tuned at 1.98 nm/px, Hitachi x25k) and converted to image px for the loaded image
+const DEF = { mode: 'line', pol: 'dark', sigma_nm: 4.75, L_nm: 60, hi: 0.5, lo: 0.18, h_nm: 8, merge: 0.15, minSeg_nm2: 627 };
+const autoF = () => { const f = Math.round(4 / S.nmpx); return Math.max(1, Math.min(4, f, S.W0 * S.H0 > 6e6 ? 4 : 2)); };
+const r1 = v => Math.round(v * 10) / 10;
+function applyAuto(keepMode) { const k = S.nmpx, mode = keepMode ? S.p.mode : DEF.mode;
+  if (mode === 'contrast') { // grain-tone boundaries: scale to image width (~900 px working image)
+    const f = Math.max(1, Math.min(4, Math.round(S.W0 / 900))), u = S.W0 / 873;
+    Object.assign(S.p, { mode, pol: 'bright', hi: 0.4, lo: 0.15, merge: 0.12, sigma: Math.min(8, r1(2.5 * u / 0.2) * 0.2), L: Math.min(80, 2 * Math.round(15 * u / 2)), h: Math.min(20, Math.round(4 * u * 2) / 2), minSeg: 40 * u * u, f });
+  } else {
+    Object.assign(S.p, { mode, pol: DEF.pol, hi: DEF.hi, lo: DEF.lo, merge: DEF.merge,
+      sigma: Math.max(1, r1(DEF.sigma_nm / k / 0.2) * 0.2), L: Math.min(80, 2 * Math.round(DEF.L_nm / k / 2)), h: Math.max(0.5, Math.round(DEF.h_nm / k * 2) / 2), minSeg: DEF.minSeg_nm2 / (k * k) });
+    S.p.f = autoF(); }
+  $('mode').value = S.p.mode; $('destripeRow').hidden = S.p.mode !== 'contrast'; $('pol').value = S.p.pol; $('fres').value = S.p.f;
+  [['sigma', v => v.toFixed(1) + ' px'], ['L', v => v ? v + ' px' : 'off'], ['hi', v => v.toFixed(2)], ['lo', v => v.toFixed(2)], ['h', v => v.toFixed(1) + ' px'], ['merge', v => v ? v.toFixed(2) : 'off']]
+    .forEach(([id, fm]) => { $(id).value = S.p[id]; $(id + 'O').textContent = fm(S.p[id]); }); }
+function markDirty() { S.dirty = true; const b = $('procBtn'); b.textContent = 'Process ●'; if (S.res) setStatus('파라미터 변경됨 · Process'); }
+
+// ---------------- image loading ----------------
+function setImage(gray, W, H, name, nmpx, sample, gt) {
+  S.gray = gray; S.W0 = W; S.H0 = H; S.name = name; S.sample = !!sample; S.gt = gt || null;
+  S.edits = []; S.c = {}; S.res = null; ovB = ovG = ovR = null; S.scaleLine = null; S.mergeA = null; $('applyLineBtn').disabled = true;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d'), id = cx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) { const v = gray[i]; id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = v; id.data[4 * i + 3] = 255; }
+  cx.putImageData(id, 0, 0); S.base = cv;
+  const tk = detectTicks(false); S.tk = tk;
+  S.roi = { x0: 0, y0: 0, x1: W, y1: tk ? Math.max(10, tk.yTop - 8) : H };
+  if (nmpx) S.nmpx = nmpx; else if (tk) S.nmpx = tk.nmpx;
+  $('nmpx').value = S.nmpx.toFixed(3); applyAuto(true); S.xmax = S.ymax = null; $('xmax').value = $('ymax').value = '';
+  $('scaleinfo').textContent = nmpx ? 'Hitachi .txt PixelSize 적용' :
+    tk ? `Ticks ${tk.n}개 검출 · spacing ${tk.sp.toFixed(1)} px → ${S.nmpx.toFixed(3)} nm/px (10-division 기준)` : '눈금을 찾지 못했습니다. Pixel size를 입력하거나 Scale line을 그리십시오.';
+  $('srcname').textContent = name;
+  fit(); markDirty(); setStatus('Process 대기'); renderKpis(); drawHist(); updateDatabar();
+}
+
+async function loadFiles(files) {
+  files = [...files]; if (!files.length) return;
+  const txt = files.find(f => /\.txt$/i.test(f.name)), img = files.find(f => !/\.txt$/i.test(f.name));
+  let nm = null;
+  if (txt) { const t = await txt.text(); const m = t.match(/PixelSize\s*=\s*([\d.]+)/i); if (m) nm = parseFloat(m[1]); }
+  if (!img) { if (nm && S.gray) { S.nmpx = nm; $('nmpx').value = nm.toFixed(3); $('scaleinfo').textContent = 'Hitachi .txt PixelSize 적용'; stats(); } else toast('PixelSize 항목이 없는 .txt 파일입니다.'); return; }
+  const buf = await img.arrayBuffer();
+  try {
+    let W, H, rgba;
+    if (/\.tiff?$/i.test(img.name)) {
+      if (typeof UTIF === 'undefined') throw new Error('TIFF 디코더를 불러오지 못했습니다. PNG/JPG로 변환해 주십시오.');
+      const ifds = UTIF.decode(buf); UTIF.decodeImage(buf, ifds[0]); rgba = UTIF.toRGBA8(ifds[0]); W = ifds[0].width; H = ifds[0].height;
+    } else {
+      const bmp = await createImageBitmap(new Blob([buf]));
+      W = bmp.width; H = bmp.height; const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const cx = cv.getContext('2d'); cx.drawImage(bmp, 0, 0); rgba = cx.getImageData(0, 0, W, H).data;
+    }
+    const g = new Uint8ClampedArray(W * H);
+    for (let i = 0; i < W * H; i++) g[i] = Math.round(0.299 * rgba[4 * i] + 0.587 * rgba[4 * i + 1] + 0.114 * rgba[4 * i + 2]);
+    setImage(g, W, H, img.name, nm, false);
+    toast(nm ? `불러왔습니다 · PixelSize ${nm} nm (.txt)` : '이미지를 불러왔습니다.');
+  } catch (e) { toast(e.message || '이미지를 읽지 못했습니다.'); }
+}
+
+// Hitachi-style dotted scale: equally spaced short white ticks in the bottom band
+function detectTicks(verbose) {
+  const W = S.W0, H = S.H0, g = S.gray; if (!g) return null;
+  const y0 = Math.floor(H * 0.75), minRun = Math.max(5, Math.round(H / 250)), maxH = Math.max(12, H / 50);
+  // vertical white runs of tick-like length, grouped across adjacent columns
+  const runs = [];
+  for (let x = 0; x < W; x++) { let st = -1;
+    for (let y = y0; y <= H; y++) { const on = y < H && g[y * W + x] >= 240;
+      if (on && st < 0) st = y; else if (!on && st >= 0) { const L = y - st; if (L >= minRun && L <= maxH) runs.push([x, st, L]); st = -1; } } }
+  const cand = [];
+  for (const [x, y, L] of runs) { const k = cand.find(c => x - c.b <= 1 && x > c.b - 1 && Math.abs(c.ys[0] - y) <= 2);
+    if (k) { k.b = x; k.ys.push(y); k.hs.push(L); } else cand.push({ a: x, b: x, ys: [y], hs: [L] }); }
+  const med = a => a.slice().sort((p, q) => p - q)[a.length >> 1];
+  const c = cand.filter(k => k.b - k.a <= Math.max(8, W / 300)).map(k => ({ x: (k.a + k.b) / 2, y: med(k.ys), h: med(k.hs) }));
+  let best = null;
+  for (let i = 0; i < c.length; i++) for (let j = i + 1; j < c.length; j++) {
+    const sp = c[j].x - c[i].x; if (sp < W / 100 || sp > W / 8) continue;
+    const same = (p, q) => Math.abs(p.y - q.y) <= 3 && Math.abs(p.h - q.h) <= 3;
+    if (!same(c[i], c[j])) continue;
+    const chain = [c[i], c[j]]; let last = c[j];
+    for (let k = j + 1; k < c.length; k++) { if (!same(c[k], c[i])) continue; const d = c[k].x - last.x, m = Math.round(d / sp);
+      if (m >= 1 && m <= 3 && Math.abs(d - m * sp) <= 2.5) { chain.push(c[k]); last = c[k]; } else if (d > 3 * sp + 3) break; }
+    const cover = Math.round((last.x - c[i].x) / sp); if (chain.length >= 4 && cover >= 6 && (!best || chain.length > best.chain.length)) best = { chain, sp };
+  }
+  if (!best) { if (verbose) toast('눈금을 찾지 못했습니다. Scale 도구로 bar 길이를 그리십시오.'); return null; }
+  const ch = best.chain, span = ch[ch.length - 1].x - ch[0].x, k = Math.round(span / best.sp), sp = span / k;
+  const len = parseFloat($('barlen').value) || 2;
+  return { n: ch.length, sp, nmpx: (len * 1000 / 10) / sp, yTop: Math.min(...ch.map(t => t.y)) };
+}
+
+// ---------------- synthetic sample (known ground truth) ----------------
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makeSample() {
+  const W = 2048, H = 1536, nmpx = 2.48, R = rng(20251113), cell = 150;
+  const seeds = [];
+  for (let gy = -1; gy <= Math.ceil(H / cell); gy++) for (let gx = -1; gx <= Math.ceil(W / cell); gx++) {
+    if (R() < 0.18) continue;
+    const n = R() < 0.3 ? 2 : 1;
+    for (let k = 0; k < n; k++) seeds.push([(gx + 0.5 + (R() - 0.5) * 0.9) * cell, (gy + 0.5 + (R() - 0.5) * 0.9) * cell]);
+  }
+  const gw = Math.ceil(W / cell) + 3, gh = Math.ceil(H / cell) + 3, buckets = Array.from({ length: gw * gh }, () => []);
+  seeds.forEach((s, i) => { const bx = Math.floor(s[0] / cell) + 1, by = Math.floor(s[1] / cell) + 1; if (bx >= 0 && by >= 0 && bx < gw && by < gh) buckets[by * gw + bx].push(i); });
+  const waves = Array.from({ length: 4 }, () => [R() * 0.02 + 0.006, R() * 0.02 + 0.006, R() * 6.28, 7 + R() * 7]);
+  const warp = (x, y, o) => { let d = 0; for (const [a, b, ph, A] of waves) d += A * Math.sin(a * x + b * y + ph + o); return d; };
+  const lab = new Int32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const wx = x + warp(x, y, 0), wy = y + warp(y, x, 1.7), bx = Math.floor(wx / cell) + 1, by = Math.floor(wy / cell) + 1;
+    let bd = 1e18, bi = 0;
+    for (let j = by - 2; j <= by + 2; j++) for (let i = bx - 2; i <= bx + 2; i++) { if (i < 0 || j < 0 || i >= gw || j >= gh) continue;
+      for (const k of buckets[j * gw + i]) { const dx = seeds[k][0] - wx, dy = seeds[k][1] - wy, d = dx * dx + dy * dy; if (d < bd) { bd = d; bi = k + 1; } } }
+    lab[y * W + x] = bi;
+  }
+  const bnd = new Uint8Array(W * H);
+  for (let y = 0; y < H - 1; y++) for (let x = 0; x < W - 1; x++) { const p = y * W + x; if (lab[p] !== lab[p + 1] || lab[p] !== lab[p + W]) bnd[p] = 1; }
+  const D = GB.edt(bnd, W, H);
+  const off = new Float32Array(seeds.length + 1), glow = new Float32Array(seeds.length + 1);
+  for (let i = 0; i <= seeds.length; i++) { off[i] = (R() - 0.5) * 10; glow[i] = R() < 0.5 ? R() * 50 : R() * 12; }
+  const img = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x, d = D[p], l = lab[p];
+    const st = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(x * 0.011 + Math.sin(y * 0.007) * 3));
+    img[p] = 96 + off[l] + 4 * Math.sin(2 * Math.PI * x / 140) - 62 * st * Math.exp(-d * d / (2 * 1.25 * 1.25)) + (d > 1.6 ? glow[l] * Math.exp(-(d - 1.6) / 4) : 0); }
+  for (let k = 0; k < 420; k++) { const cx = R() * W, cy = R() * H, s = 4 + R() * 5, A = 25 + R() * 40, r = Math.ceil(3 * s);
+    for (let y = Math.max(0, cy - r | 0); y < Math.min(H, cy + r); y++) for (let x = Math.max(0, cx - r | 0); x < Math.min(W, cx + r); x++) img[y * W + x] += A * Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * s * s)); }
+  for (let k = 0; k < 45; k++) { const cx = R() * W, cy = R() * H, th = R() * Math.PI, len = 25 + R() * 55;
+    for (let t = -len / 2; t <= len / 2; t += 0.5) { const x = Math.round(cx + t * Math.cos(th)), y = Math.round(cy + t * Math.sin(th)); if (x < 1 || y < 1 || x >= W - 1 || y >= H - 1) continue; img[y * W + x] -= 18; img[y * W + x + 1] -= 9; } }
+  const g = new Uint8ClampedArray(W * H);
+  for (let i = 0; i < W * H; i += 2) { const u = R() || 1e-9, v = R(), m = Math.sqrt(-2 * Math.log(u)); g[i] = img[i] + 21 * m * Math.cos(6.2832 * v); if (i + 1 < W * H) g[i + 1] = img[i + 1] + 21 * m * Math.sin(6.2832 * v); }
+  // data bar: 11 ticks over 2.00 µm + labels, drawn into the image like the instrument does
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'), id = cx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) { id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = g[i]; id.data[4 * i + 3] = 255; }
+  cx.putImageData(id, 0, 0);
+  const sp = 200 / nmpx, x0 = Math.round(W * 0.535), ty = H - 95;
+  cx.fillStyle = '#fff';
+  for (let k = 0; k <= 10; k++) cx.fillRect(Math.round(x0 + k * sp) - 1, ty, 3, 14);
+  cx.font = '600 50px Arial, sans-serif'; cx.textBaseline = 'top';
+  cx.fillText('10.0kV 6.0mm x25.0k SE(U)', 55, H - 70); cx.fillText('2.00um', Math.round(x0 + 10 * sp) - 210, H - 70);
+  const d2 = cx.getImageData(0, 0, W, H).data; const out = new Uint8ClampedArray(W * H);
+  for (let i = 0; i < W * H; i++) out[i] = d2[4 * i];
+  // ground truth over the default ROI
+  const yb = ty - 8, px = nmpx / 1000;
+  let max = 0; for (let i = 0; i < lab.length; i++) if (lab[i] > max) max = lab[i];
+  const gtG = GB.grains(lab, max, W, H, px, { x0: 0, y0: 0, x1: W, y1: yb });
+  return { g: out, W, H, nmpx, gt: gtG };
+}
+
+// ---------------- pipeline ----------------
+const setStatus = (t, busy) => { const e = $('status'); e.textContent = t; e.classList.toggle('busy', !!busy); };
+let running = false, pending = null;
+async function run(from) {
+  if (!S.gray) return;
+  if (running) { pending = pending === 'A' || from === 'A' ? 'A' : 'B'; return; }
+  running = true; const t0 = performance.now();
+  try {
+    const p = S.p, f = p.f, c = S.c;
+    const keyA = [f, p.mode, S.destripe, p.pol, p.sigma, p.L].join('|');
+    if (from === 'A' || c.keyA !== keyA) {
+      setStatus('Ridge filter…', true); await tick();
+      const ds = GB.downsample(S.gray, S.W0, S.H0, f); c.img = ds.img; c.w = ds.W; c.h = ds.H;
+      const sg = p.sigma / f; let R;
+      if (p.mode === 'contrast') {
+        const w = c.w, h = c.h, im = Float32Array.from(c.img);
+        if (S.destripe) { // remove horizontal scan-line offsets (row mean minus its local vertical trend)
+          const rm = new Float32Array(h); for (let y = 0; y < h; y++) { let a = 0; for (let x = 0; x < w; x++) a += im[y * w + x]; rm[y] = a / w; }
+          for (let y = 0; y < h; y++) { let a = 0, n = 0; for (let k = -12; k <= 12; k++) { const yy = y + k; if (yy < 0 || yy >= h) continue; a += rm[yy]; n++; } const d = rm[y] - a / n; for (let x = 0; x < w; x++) im[y * w + x] -= d; } }
+        const G = GB.gauss(im, w, h, sg), E = new Float32Array(w * h);
+        for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const q = y * w + x;
+          const gx = (G[q - w + 1] + 2 * G[q + 1] + G[q + w + 1]) - (G[q - w - 1] + 2 * G[q - 1] + G[q + w - 1]);
+          const gy = (G[q + w - 1] + 2 * G[q + w] + G[q + w + 1]) - (G[q - w - 1] + 2 * G[q - w] + G[q - w + 1]);
+          E[q] = Math.hypot(gx, gy); }
+        R = GB.normalize(E, null, 0.995);
+        const V = GB.normalize(GB.valley(im, w, h, [sg * 0.6, sg], p.pol, Math.max(0.6, sg * 0.6)), null, 0.995);
+        for (let i = 0; i < R.length; i++) R[i] = Math.max(R[i], 0.7 * V[i]);
+      } else R = GB.valley(c.img, c.w, c.h, [sg, sg * 1.67], p.pol, Math.max(0.6, sg));
+      setStatus('Line filter…', true); await tick();
+      const Lw = Math.round(p.L / f); if (Lw >= 3) R = GB.lineFilter(R, c.w, c.h, Lw | 1, 12);
+      c.R = R; c.keyA = keyA;
+    }
+    setStatus('Segmentation…', true); await tick();
+    const w = c.w, h = c.h, N = w * h;
+    const rr = { x0: Math.max(0, Math.floor(S.roi.x0 / f)), y0: Math.max(0, Math.floor(S.roi.y0 / f)), x1: Math.min(w, Math.ceil(S.roi.x1 / f)), y1: Math.min(h, Math.ceil(S.roi.y1 / f)) };
+    const roi = new Uint8Array(N); for (let y = rr.y0; y < rr.y1; y++) roi.fill(1, y * w + rr.x0, y * w + rr.x1);
+    const Rn = GB.normalize(c.R, roi, 0.995);
+    const forced = new Int8Array(N);
+    for (const e of S.edits) if (e.t === 'draw' || e.t === 'erase') rasterStroke(e, f, w, h, forced, e.t === 'draw' ? 1 : -1);
+    for (let i = 0; i < N; i++) { if (forced[i] > 0) Rn[i] = 1; else if (forced[i] < 0) Rn[i] = 0; }
+    const B = GB.removeSmall(GB.hysteresis(Rn, w, h, p.lo, p.hi, roi), w, h, Math.max(4, Math.round(p.minSeg / (f * f))));
+    for (let i = 0; i < N; i++) if (forced[i] > 0 && roi[i]) B[i] = 1;
+    const D = GB.edt(B, w, h);
+    const kk = 1.98 / S.nmpx, cu = S.W0 / 873; const m = GB.markers(D, w, h, p.h / f, p.mode === 'contrast' ? Math.max(1.5, 4 * cu / f) : Math.max(1.5, 3 * kk / f), roi);
+    const lab = m.lab; let next = m.n + 1; const protect = new Set();
+    for (const e of S.edits) if (e.t === 'seed') { const x = Math.round(e.x / f), y = Math.round(e.y / f), r = 2;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h || !roi[yy * w + xx] || dx * dx + dy * dy > r * r) continue; lab[yy * w + xx] = next; }
+      protect.add(next); next++; }
+    const dcap = p.mode === 'contrast' ? Math.max(4, 20 * cu / f) : Math.max(4, 30 * kk / f), relief = new Float32Array(N);
+    for (let i = 0; i < N; i++) relief[i] = Math.min(1, 0.5 * Rn[i] + 0.5 * (1 - Math.min(D[i], dcap) / dcap));
+    GB.watershed(relief, lab, w, h, roi);
+    // protect labels by seed position (labels unchanged until relabel)
+    GB.mergeWeak(lab, GB.maxFilter(Rn, w, h), w, h, p.merge, protect);
+    for (const e of S.edits) if (e.t === 'merge') {
+      const a = lab[Math.round(e.a[1] / f) * w + Math.round(e.a[0] / f)], b = lab[Math.round(e.b[1] / f) * w + Math.round(e.b[0] / f)];
+      if (a && b && a !== b) for (let i = 0; i < N; i++) if (lab[i] === b) lab[i] = a;
+    }
+    const n = GB.relabel(lab, N);
+    c.Rn = Rn; c.lab = lab; c.n = n; c.rr = rr;
+    buildOverlay(); stats(); S.dirty = false; $('procBtn').textContent = 'Process';
+    setStatus(`Ready · ${((performance.now() - t0) / 1000).toFixed(2)} s`);
+  } catch (e) { console.error(e); setStatus('Error'); toast('처리 중 오류가 발생했습니다: ' + e.message); }
+  running = false;
+  if (pending) { const q = pending; pending = null; run(q); }
+}
+
+function rasterStroke(e, f, w, h, out, v) {
+  const r = Math.max(0.6, e.r / f), pts = e.pts.map(q => [q[0] / f, q[1] / f]);
+  const dot = (cx, cy) => { for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+    if (x < 0 || y < 0 || x >= w || y >= h) continue; if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) out[y * w + x] = v; } };
+  if (pts.length === 1) dot(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) { const [ax, ay] = pts[i - 1], [bx, by] = pts[i], L = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(L / 0.5));
+    for (let k = 0; k <= n; k++) dot(ax + (bx - ax) * k / n, ay + (by - ay) * k / n); }
+}
+
+// ---------------- statistics ----------------
+const quant = (a, q) => { if (!a.length) return NaN; const i = (a.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi] - a[lo]) * (i - lo); };
+function summarize(list) {
+  const e = list.map(g => g.ecd).sort((a, b) => a - b), n = e.length;
+  if (!n) return { n: 0 };
+  const mean = e.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(e.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1));
+  const At = list.reduce((a, g) => a + g.area, 0), aw = list.reduce((a, g) => a + g.ecd * g.area, 0) / At;
+  return { n, mean, sd, d10: quant(e, .1), d50: quant(e, .5), d90: quant(e, .9), aw, ar: list.reduce((a, g) => a + g.ar, 0) / n, sorted: e };
+}
+function stats() {
+  const c = S.c; if (!c.lab) return;
+  const px = S.nmpx * S.p.f / 1000;
+  const all = GB.grains(c.lab, c.n, c.w, c.h, px, c.rr);
+  const minE = S.minEcd / 1000;
+  all.forEach(g => g.inc = (!S.edge || !g.edge) && g.ecd >= minE);
+  const inc = all.filter(g => g.inc), sm = summarize(inc), it = GB.intercept(c.lab, c.w, c.h, c.rr, px, Math.max(2, Math.round(8 / S.p.f)));
+  S.res = { all, inc, sm, it, px, byId: new Map(all.map(g => [g.id, g])) };
+  if (S.gt && S.sample) {
+    const gi = S.gt.filter(g => (!S.edge || !g.edge) && g.ecd >= minE), gs = summarize(gi);
+    $('gt').hidden = false;
+    $('gt').textContent = `Ground truth · N ${gs.n} · mean ECD ${gs.mean.toFixed(3)} µm · D50 ${gs.d50.toFixed(3)} µm  →  오차 ${sm.n ? ((sm.mean / gs.mean - 1) * 100).toFixed(1) : '–'} %`;
+  } else $('gt').hidden = true;
+  renderKpis(); drawHist(); drawOverlayColors(); render(); updateDatabar();
+}
+function renderKpis() {
+  if (!S.res) { $('nlabel').textContent = ''; $('kpis').innerHTML = ['N grains', 'Mean ECD', 'SD', 'D10', 'D50', 'D90', 'Area-wt ECD', 'Mean AR', 'Lx / Ly', 'Intercept Lx', 'Intercept Ly', 'Pixel'].map(l => `<div class="kpi"><div class="l">${l}</div><div class="v">–</div></div>`).join(''); $('gt').hidden = true; return; }
+  const { sm, it, all } = S.res, f3 = v => isFinite(v) ? v.toFixed(3) : '–';
+  $('nlabel').textContent = `${sm.n} / ${all.length} grains`;
+  const k = [
+    ['N grains', `${sm.n}`], ['Mean ECD', `${f3(sm.mean)}<small> µm</small>`], ['SD', `${f3(sm.sd)}<small> µm</small>`],
+    ['D10', `${f3(sm.d10)}`], ['D50', `${f3(sm.d50)}`], ['D90', `${f3(sm.d90)}`],
+    ['Area-wt ECD', `${f3(sm.aw)}<small> µm</small>`], ['Mean AR', isFinite(sm.ar) ? sm.ar.toFixed(2) : '–'], ['Lx / Ly', isFinite(it.Lx / it.Ly) ? (it.Lx / it.Ly).toFixed(2) : '–'],
+    ['Intercept Lx', `${f3(it.Lx)}<small> µm</small>`], ['Intercept Ly', `${f3(it.Ly)}<small> µm</small>`], ['Pixel', `${(S.nmpx * S.p.f).toFixed(2)}<small> nm</small>`],
+  ];
+  $('kpis').innerHTML = k.map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+}
+
+// ---------------- overlay buffers ----------------
+let ovB = null, ovG = null, ovR = null, colors = null;
+function buildOverlay() {
+  const c = S.c, w = c.w, h = c.h, lab = c.lab;
+  const mk = () => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv; };
+  ovB = mk(); ovR = mk(); ovG = mk();
+  const gbc = hex(css('--gb')), b = ovB.getContext('2d').createImageData(w, h), r = ovR.getContext('2d').createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const p = y * w + x, l = lab[p];
+    const isB = l && ((x < w - 1 && lab[p + 1] !== l && lab[p + 1]) || (y < h - 1 && lab[p + w] !== l && lab[p + w]));
+    if (isB) { b.data[4 * p] = gbc[0]; b.data[4 * p + 1] = gbc[1]; b.data[4 * p + 2] = gbc[2]; b.data[4 * p + 3] = 255; }
+    const v = c.Rn[p] * 255; r.data[4 * p] = r.data[4 * p + 1] = r.data[4 * p + 2] = v; r.data[4 * p + 3] = 255; }
+  ovB.getContext('2d').putImageData(b, 0, 0); ovR.getContext('2d').putImageData(r, 0, 0);
+  const R = rng(7); colors = new Uint8Array((c.n + 1) * 3);
+  for (let i = 1; i <= c.n; i++) { const hh = R() * 360, s = 0.55 + R() * 0.35, l = 0.45 + R() * 0.2; const [rr, gg, bb] = hsl(hh, s, l); colors.set([rr, gg, bb], i * 3); }
+}
+function drawOverlayColors() {
+  if (!ovG || !S.res) return; const c = S.c, w = c.w, h = c.h, lab = c.lab, inc = new Uint8Array(c.n + 1);
+  S.res.all.forEach(g => inc[g.id] = g.inc ? 1 : 0);
+  const im = ovG.getContext('2d').createImageData(w, h);
+  for (let p = 0; p < w * h; p++) { const l = lab[p]; if (!l) continue;
+    if (inc[l]) { im.data[4 * p] = colors[3 * l]; im.data[4 * p + 1] = colors[3 * l + 1]; im.data[4 * p + 2] = colors[3 * l + 2]; im.data[4 * p + 3] = 255; }
+    else { im.data[4 * p] = im.data[4 * p + 1] = im.data[4 * p + 2] = 70; im.data[4 * p + 3] = 255; } }
+  ovG.getContext('2d').putImageData(im, 0, 0);
+}
+const hex = s => { s = s.replace('#', ''); if (s.length === 3) s = s.split('').map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16)); };
+function hsl(h, s, l) { const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return [f(0) * 255, f(8) * 255, f(4) * 255]; }
+
+// ---------------- viewer ----------------
+const view = $('view'), stage = $('stage');
+let ctx = view.getContext('2d');
+function resize() { const r = stage.getBoundingClientRect(), d = devicePixelRatio || 1; view.width = Math.round(r.width * d); view.height = Math.round(r.height * d); render(); }
+function fit() { if (!S.W0) return; const r = stage.getBoundingClientRect(); T.s = Math.min(r.width / S.W0, r.height / S.H0) * 0.98; T.ox = (r.width - S.W0 * T.s) / 2; T.oy = (r.height - S.H0 * T.s) / 2; render(); }
+const toImg = (sx, sy) => [(sx - T.ox) / T.s, (sy - T.oy) / T.s];
+let live = null, hoverPt = null;
+function render() {
+  const d = devicePixelRatio || 1; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, view.width, view.height);
+  if (!S.base) return;
+  ctx.setTransform(d * T.s, 0, 0, d * T.s, d * T.ox, d * T.oy);
+  ctx.imageSmoothingEnabled = T.s < 1;
+  const f = S.p.f, v = S.view;
+  if (v === 'ridge' && ovR) { ctx.imageSmoothingEnabled = false; ctx.drawImage(ovR, 0, 0, ovR.width * f, ovR.height * f); }
+  else ctx.drawImage(S.base, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  if (v === 'grains' && ovG) { ctx.globalAlpha = 0.5; ctx.drawImage(ovG, 0, 0, ovG.width * f, ovG.height * f); ctx.globalAlpha = 1; }
+  if ((v === 'overlay' || v === 'grains' || v === 'ridge') && ovB) ctx.drawImage(ovB, 0, 0, ovB.width * f, ovB.height * f);
+  const lw = 1 / T.s;
+  // ROI
+  if (S.roi) { ctx.strokeStyle = '#7fd3ef'; ctx.lineWidth = 1.5 * lw; ctx.setLineDash([6 * lw, 4 * lw]); const r = S.roi; ctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, r.y1, S.W0, S.H0 - r.y1); ctx.fillRect(0, 0, S.W0, r.y0); ctx.fillRect(0, r.y0, r.x0, r.y1 - r.y0); ctx.fillRect(r.x1, r.y0, S.W0 - r.x1, r.y1 - r.y0); }
+  // edits
+  if (live) drawEdit(live, lw);
+  if (S.scaleLine) { const [a, b] = S.scaleLine; ctx.strokeStyle = '#ff5ad1'; ctx.lineWidth = 2 * lw; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  // hovered / selected grain
+  const hl = (pt, col) => { if (!pt || !S.c.lab) return; const g = grainAt(pt[0], pt[1]); if (!g) return; ctx.strokeStyle = col; ctx.lineWidth = 2 * lw;
+    ctx.beginPath(); ctx.arc(g.cx * f, g.cy * f, Math.max(3 * lw, g.ecd / 2 / (S.nmpx / 1000)), 0, 6.283); ctx.stroke(); };
+  if (S.mergeA) hl(S.mergeA, '#ff5ad1');
+  $('zoomlbl').textContent = `${(T.s * 100).toFixed(0)} %`;
+}
+function drawEdit(e, lw) {
+  if (e.t === 'draw' || e.t === 'erase') { ctx.strokeStyle = e.t === 'draw' ? 'rgba(255,90,209,.85)' : 'rgba(127,211,239,.6)'; ctx.lineWidth = Math.max(e.r * 2, 1.5 * lw); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); e.pts.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); if (e.pts.length === 1) ctx.lineTo(e.pts[0][0] + 0.1, e.pts[0][1]); ctx.stroke(); }
+  else if (e.t === 'seed') { ctx.fillStyle = '#ff5ad1'; ctx.beginPath(); ctx.arc(e.x, e.y, 4 * lw, 0, 6.283); ctx.fill(); }
+  else if (e.t === 'merge') { ctx.strokeStyle = '#ff5ad1'; ctx.lineWidth = 1.5 * lw; ctx.setLineDash([3 * lw, 3 * lw]); ctx.beginPath(); ctx.moveTo(e.a[0], e.a[1]); ctx.lineTo(e.b[0], e.b[1]); ctx.stroke(); ctx.setLineDash([]); }
+}
+function grainAt(x, y) { const c = S.c; if (!c.lab || !S.res) return null; const f = S.p.f, X = Math.floor(x / f), Y = Math.floor(y / f); if (X < 0 || Y < 0 || X >= c.w || Y >= c.h) return null; return S.res.byId.get(c.lab[Y * c.w + X]) || null; }
+
+const hints = { pan: 'Drag: 이동 · Wheel: 확대/축소', roi: 'Drag: 분석 영역 지정', scale: 'Drag: scale bar 양 끝 지정 후 Apply', draw: 'Drag: 누락된 boundary 그리기', erase: 'Drag: 잘못된 boundary 지우기', seed: 'Click: seed 추가 (과소분할 grain split)', merge: 'Click 두 번: 인접 grain 병합' };
+function setTool(t) { S.tool = t; S.mergeA = null; document.querySelectorAll('#tools [data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t)); $('hint').textContent = hints[t]; stage.style.cursor = t === 'pan' ? 'grab' : 'crosshair'; render(); }
+function setView(v) { S.view = v; document.querySelectorAll('#vmode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); render(); }
+
+let drag = null, spaceDown = false;
+stage.addEventListener('pointerdown', ev => {
+  if (!S.base || ev.target.closest('.tools,.viewbar')) return;
+  if (!S.res && ['draw', 'erase', 'seed', 'merge'].includes(S.tool) && !spaceDown && ev.button !== 1) { toast('먼저 Process를 실행하십시오.'); return; }
+  stage.setPointerCapture(ev.pointerId);
+  const r = stage.getBoundingClientRect(), sx = ev.clientX - r.left, sy = ev.clientY - r.top, [x, y] = toImg(sx, sy);
+  const tool = (spaceDown || ev.button === 1) ? 'pan' : S.tool;
+  drag = { tool, sx, sy, x, y, ox: T.ox, oy: T.oy };
+  if (tool === 'draw' || tool === 'erase') live = { t: tool, r: S.brush, pts: [[x, y]] };
+  if (tool === 'roi') live = null;
+  if (tool === 'seed') { S.edits.push({ t: 'seed', x, y }); render(); run('B'); drag = null; }
+  if (tool === 'merge') { const g = grainAt(x, y); if (!g) return;
+    if (!S.mergeA) { S.mergeA = [x, y]; render(); } else { S.edits.push({ t: 'merge', a: S.mergeA, b: [x, y] }); S.mergeA = null; run('B'); }
+    drag = null; }
+});
+stage.addEventListener('pointermove', ev => {
+  const r = stage.getBoundingClientRect(), sx = ev.clientX - r.left, sy = ev.clientY - r.top, [x, y] = toImg(sx, sy);
+  if (drag) {
+    if (drag.tool === 'pan') { T.ox = drag.ox + sx - drag.sx; T.oy = drag.oy + sy - drag.sy; render(); }
+    else if (live && (drag.tool === 'draw' || drag.tool === 'erase')) { const l = live.pts[live.pts.length - 1]; if (Math.hypot(x - l[0], y - l[1]) > 1 / T.s) { live.pts.push([x, y]); render(); } }
+    else if (drag.tool === 'roi') { drag.cur = [x, y]; render(); const d = devicePixelRatio || 1; ctx.setTransform(d * T.s, 0, 0, d * T.s, d * T.ox, d * T.oy); ctx.strokeStyle = '#7fd3ef'; ctx.lineWidth = 2 / T.s; ctx.strokeRect(drag.x, drag.y, x - drag.x, y - drag.y); }
+    else if (drag.tool === 'scale') { S.scaleLine = [[drag.x, drag.y], [x, y]]; render(); }
+    $('tip').hidden = true; return;
+  }
+  const g = grainAt(x, y), tip = $('tip');
+  if (g && S.view !== 'image') { tip.hidden = false;
+    tip.innerHTML = `#${g.id}${g.inc ? '' : ' · excluded'}<br>ECD ${(g.ecd * 1000).toFixed(0)} nm<br>Area ${g.area.toFixed(4)} µm²<br>AR ${g.ar.toFixed(2)} · ${g.angle.toFixed(0)}°`;
+    const tx = Math.min(sx + 14, r.width - tip.offsetWidth - 6), ty = Math.min(sy + 14, r.height - tip.offsetHeight - 6); tip.style.left = tx + 'px'; tip.style.top = ty + 'px'; }
+  else tip.hidden = true;
+});
+stage.addEventListener('pointerleave', () => { $('tip').hidden = true; });
+stage.addEventListener('pointerup', ev => {
+  if (!drag) return; const d = drag; drag = null;
+  if (live && (d.tool === 'draw' || d.tool === 'erase')) { S.edits.push(live); live = null; run('B'); }
+  else if (d.tool === 'roi' && d.cur) { const x0 = Math.max(0, Math.min(d.x, d.cur[0])), x1 = Math.min(S.W0, Math.max(d.x, d.cur[0])), y0 = Math.max(0, Math.min(d.y, d.cur[1])), y1 = Math.min(S.H0, Math.max(d.y, d.cur[1]));
+    if (x1 - x0 > 20 && y1 - y0 > 20) { S.roi = { x0: Math.round(x0), y0: Math.round(y0), x1: Math.round(x1), y1: Math.round(y1) }; markDirty(); render(); updateDatabar(); } else render(); }
+  else if (d.tool === 'scale' && S.scaleLine) { const [a, b] = S.scaleLine, L = Math.hypot(b[0] - a[0], b[1] - a[1]); $('applyLineBtn').disabled = L < 5; $('scaleinfo').textContent = `Scale line ${L.toFixed(1)} px · Scale bar 길이를 확인하고 Apply를 누르십시오.`; }
+});
+stage.addEventListener('wheel', ev => { if (!S.base) return; ev.preventDefault(); const r = stage.getBoundingClientRect(), sx = ev.clientX - r.left, sy = ev.clientY - r.top;
+  const k = Math.exp(-ev.deltaY * 0.0015), ns = Math.min(16, Math.max(0.05, T.s * k)); T.ox = sx - (sx - T.ox) * ns / T.s; T.oy = sy - (sy - T.oy) * ns / T.s; T.s = ns; render(); }, { passive: false });
+// file drop
+['dragenter', 'dragover'].forEach(t => stage.addEventListener(t, e => { e.preventDefault(); $('drop').hidden = false; }));
+['dragleave', 'drop'].forEach(t => stage.addEventListener(t, e => { e.preventDefault(); if (t === 'dragleave' && stage.contains(e.relatedTarget)) return; $('drop').hidden = true; }));
+stage.addEventListener('drop', e => loadFiles(e.dataTransfer.files));
+
+document.querySelectorAll('#tools [data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+document.querySelectorAll('#vmode button').forEach(b => b.onclick = () => setView(b.dataset.v));
+$('undo').onclick = () => { if (S.edits.length) { S.edits.pop(); run('B'); } };
+$('fit').onclick = fit;
+addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('undo').click(); return; }
+  if (e.key === ' ') { spaceDown = true; return; }
+  const m = { v: 'pan', r: 'roi', s: 'scale', b: 'draw', e: 'erase', a: 'seed', m: 'merge' }[e.key.toLowerCase()];
+  if (m && !e.ctrlKey && !e.metaKey) setTool(m); if (e.key.toLowerCase() === 'f') fit();
+  if (e.key === 'Escape') { S.mergeA = null; render(); }
+});
+addEventListener('keyup', e => { if (e.key === ' ') spaceDown = false; });
+
+// ---------------- controls ----------------
+const bindRange = (id, get, set, fmt, stage) => { const el = $(id), o = $(id + 'O'); el.value = get(); o.textContent = fmt(get());
+  el.oninput = () => { set(+el.value); o.textContent = fmt(+el.value); if (!stage) { stats(); } };
+  el.onchange = () => { if (stage) markDirty(); }; };
+bindRange('sigma', () => S.p.sigma, v => S.p.sigma = v, v => v.toFixed(1) + ' px', 'A');
+bindRange('L', () => S.p.L, v => S.p.L = v, v => v ? v + ' px' : 'off', 'A');
+bindRange('hi', () => S.p.hi, v => S.p.hi = v, v => v.toFixed(2), 'B');
+bindRange('lo', () => S.p.lo, v => S.p.lo = v, v => v.toFixed(2), 'B');
+bindRange('h', () => S.p.h, v => S.p.h = v, v => v.toFixed(1) + ' px', 'B');
+bindRange('merge', () => S.p.merge, v => S.p.merge = v, v => v ? v.toFixed(2) : 'off', 'B');
+bindRange('brush', () => S.brush, v => { S.brush = v; }, v => v + ' px', null);
+bindRange('minA', () => S.minEcd, v => S.minEcd = v, v => v + ' nm', null);
+bindRange('bins', () => S.bins, v => { S.bins = v; drawCdf(); }, v => v, null);
+$('brush').oninput = () => { S.brush = +$('brush').value; $('brushO').textContent = S.brush + ' px'; };
+$('pol').onchange = () => { S.p.pol = $('pol').value; markDirty(); };
+$('mode').onchange = () => { S.p.mode = $('mode').value; applyAuto(true); markDirty(); toast(S.p.mode === 'contrast' ? 'Contrast 모드 기본값을 적용했습니다. Process를 누르십시오.' : 'Line 모드 기본값을 적용했습니다. Process를 누르십시오.'); };
+$('destripe').onchange = () => { S.destripe = $('destripe').checked; markDirty(); };
+$('fres').onchange = () => { S.p.f = +$('fres').value; markDirty(); };
+$('procBtn').onclick = () => { if (!S.gray) return toast('이미지를 먼저 불러오십시오.'); run('A'); };
+$('autoBtn').onclick = () => { applyAuto(true); markDirty(); toast(`Pixel size ${S.nmpx.toFixed(2)} nm 기준으로 설정했습니다. Process를 누르면 적용됩니다.`); };
+$('xmax').onchange = () => { const v = parseFloat($('xmax').value); S.xmax = v > 0 ? v : null; drawHist(); drawCdf(); };
+$('ymax').onchange = () => { const v = parseFloat($('ymax').value); S.ymax = v > 0 ? v : null; drawHist(); };
+$('autoG').onclick = () => { S.minEcd = 80; S.edge = true; S.xmax = S.ymax = null; $('xmax').value = $('ymax').value = ''; $('edge').checked = true;
+  $('minA').value = 80; $('minAO').textContent = '80 nm';
+  stats(); // recompute included set first, then pick bins from it (Freedman-Diaconis)
+  if (S.res && S.res.sm.n > 3) { const e = S.res.sm.sorted, iqr = quant(e, .75) - quant(e, .25), bw = 2 * iqr / Math.cbrt(e.length), xr = quant(S.res.all.map(g => g.ecd).sort((a, b) => a - b), .995) * 1.05;
+    S.bins = Math.max(6, Math.min(40, Math.round(xr / (bw || xr / 15)))); $('bins').value = S.bins; $('binsO').textContent = S.bins; }
+  drawHist(); drawCdf(); toast(`Bins ${S.bins} · axis auto`); };
+$('edge').onchange = () => { S.edge = $('edge').checked; stats(); };
+$('barlen').onchange = () => { const len = parseFloat($('barlen').value); if (!(len > 0) || !S.tk) return;
+  S.nmpx = len * 100 / S.tk.sp; $('nmpx').value = S.nmpx.toFixed(3); $('scaleinfo').textContent = `Ticks spacing ${S.tk.sp.toFixed(1)} px × 10 = ${len} µm → ${S.nmpx.toFixed(3)} nm/px`; stats(); updateDatabar(); };
+$('nmpx').onchange = () => { const v = parseFloat($('nmpx').value); if (v > 0) { S.nmpx = v; $('scaleinfo').textContent = 'Pixel size 수동 입력'; stats(); } };
+$('detectBtn').onclick = () => { const tk = detectTicks(true); S.tk = tk; if (tk) { S.nmpx = tk.nmpx; $('nmpx').value = tk.nmpx.toFixed(3); $('scaleinfo').textContent = `Ticks ${tk.n}개 검출 · spacing ${tk.sp.toFixed(1)} px → ${tk.nmpx.toFixed(3)} nm/px (10-division 기준)`; stats(); } };
+$('applyLineBtn').onclick = () => { if (!S.scaleLine) return; const [a, b] = S.scaleLine, L = Math.hypot(b[0] - a[0], b[1] - a[1]), len = parseFloat($('barlen').value);
+  if (!(len > 0)) return toast('Scale bar 길이를 입력하십시오.'); S.nmpx = len * 1000 / L; $('nmpx').value = S.nmpx.toFixed(3);
+  $('scaleinfo').textContent = `Scale line ${L.toFixed(1)} px = ${len} µm → ${S.nmpx.toFixed(3)} nm/px`; S.scaleLine = null; $('applyLineBtn').disabled = true; stats(); };
+document.querySelectorAll('#hmode button').forEach(b => b.onclick = () => { S.hmode = b.dataset.h; document.querySelectorAll('#hmode button').forEach(x => x.setAttribute('aria-pressed', x === b)); drawHist(); drawCdf(); });
+document.querySelectorAll('#cmode button').forEach(b => b.onclick = () => { S.cmode = b.dataset.c; document.querySelectorAll('#cmode button').forEach(x => x.setAttribute('aria-pressed', x === b)); drawCdf(); });
+$('openBtn').onclick = () => $('file').click();
+$('file').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
+$('sampleBtn').onclick = loadSample;
+async function loadSample() { setStatus('Generating sample…', true); await tick(); const s = makeSample(); setImage(s.g, s.W, s.H, 'synthetic_x25k.png', null, true, s.gt); run('A'); }
+
+function updateDatabar() {
+  if (!S.W0) { $('databar').innerHTML = ''; return; }
+  const r = S.roi, fov = S.W0 * S.nmpx / 1000;
+  $('databar').innerHTML = `<span><b>${S.W0}×${S.H0}</b> px</span><span><b>${S.nmpx.toFixed(3)}</b> nm/px</span><span>FOV <b>${fov.toFixed(2)}</b> µm</span><span>ROI <b>${((r.x1 - r.x0) * S.nmpx / 1000).toFixed(2)}×${((r.y1 - r.y0) * S.nmpx / 1000).toFixed(2)}</b> µm</span><span>Edits <b>${S.edits.length}</b></span>`;
+}
+
+// ---------------- charts ----------------
+function setupCanvas(cv) { const d = devicePixelRatio || 1, w = cv.clientWidth, h = +cv.dataset.h; cv.style.height = h + 'px'; cv.width = Math.round(w * d); cv.height = Math.round(h * d); const c = cv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); return { c, w, h }; }
+const niceStep = (span, n) => { const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; };
+let histGeo = null;
+// shared bar-chart frame: axes, grid, labels; returns scales
+function frame(c, w, h, xmax, ymax, ylab, xlab) {
+  const L = 38, Rm = 10, Tp = 22, Bm = 34, pw = w - L - Rm, ph = h - Tp - Bm;
+  const X = v => L + v / xmax * pw, Y = v => Tp + ph - v / ymax * ph, xs = niceStep(xmax, 5), ys = niceStep(ymax, 4);
+  c.font = '10.5px ' + css('--font-mono'); c.textBaseline = 'middle'; c.strokeStyle = css('--line'); c.lineWidth = 1; c.fillStyle = css('--muted'); c.textAlign = 'right';
+  for (let v = 0; v <= ymax + 1e-9; v += ys) { const y = Math.round(Y(v)) + .5; c.beginPath(); c.moveTo(L, y); c.lineTo(w - Rm, y); c.stroke(); c.fillText(v.toFixed(ys < 1 ? 1 : 0), L - 6, y); }
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  for (let v = 0; v <= xmax + 1e-9; v += xs) c.fillText(v.toFixed(xs < 0.1 ? 2 : 1), X(v), Tp + ph + 6);
+  c.fillStyle = css('--fg2'); c.fillText(xlab, L + pw / 2, h - 13); c.textAlign = 'left'; c.fillText(ylab, L, 3);
+  return { L, Rm, Tp, ph, pw, X, Y };
+}
+function bar(c, x0, x1, y, base, col, top) { if (top !== undefined && y < top) y = top; if (x1 - x0 < 0.5 || base - y < 0.3) return; const r = Math.min(4, (x1 - x0) / 2, base - y);
+  c.fillStyle = col; c.beginPath(); c.moveTo(x0, base); c.lineTo(x0, y + r); c.quadraticCurveTo(x0, y, x0 + r, y); c.lineTo(x1 - r, y); c.quadraticCurveTo(x1, y, x1, y + r); c.lineTo(x1, base); c.closePath(); c.fill(); }
+function binVals(list, nb, bw) { // list: [[ecd, area]...] -> % per bin (number or area)
+  const cnt = new Array(nb).fill(0), ar = new Array(nb).fill(0); let At = 0;
+  list.forEach(([e, a]) => { const i = Math.min(nb - 1, Math.floor(e / bw)); cnt[i]++; ar[i] += a; At += a; });
+  return { cnt, val: cnt.map((n, i) => list.length ? 100 * (S.hmode === 'n' ? n / list.length : ar[i] / At) : 0) };
+}
+function drawHist() {
+  const cv = $('hist'); const { c, w, h } = setupCanvas(cv); c.clearRect(0, 0, w, h); histGeo = null;
+  const ylab = S.hmode === 'n' ? 'Number fraction (%)' : 'Area fraction (%)';
+  if (!S.res) { const f = frame(c, w, h, 1, 20, ylab, 'ECD (µm)'); c.fillStyle = css('--muted'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Process 후 표시됩니다', f.L + f.pw / 2, f.Tp + f.ph / 2); return; }
+  // x range from ALL grains so the axis does not jump when Min ECD / edge filter changes
+  const allE = S.res.all.map(g => g.ecd).sort((a, b) => a - b), xmax0 = Math.max(0.1, quant(allE, 0.995) * 1.05);
+  const xs = niceStep(xmax0, 5), xmax = S.xmax || Math.ceil(xmax0 / xs) * xs, nb = S.bins, bw = xmax / nb;
+  const inc = S.res.inc, sm = S.res.sm, { cnt, val } = binVals(inc.map(g => [g.ecd, g.area]), nb, bw);
+  const ymax0 = Math.max(5, ...val) * 1.1, ys = niceStep(ymax0, 4), ymax = S.ymax || Math.ceil(ymax0 / ys) * ys;
+  const f = frame(c, w, h, xmax, ymax, ylab, 'ECD (µm)'), base = f.Tp + f.ph;
+  // excluded zone below Min ECD
+  const mE = S.minEcd / 1000; if (mE > 0) { const xe = f.X(Math.min(mE, xmax)); c.fillStyle = css('--line'); c.globalAlpha = .55; c.fillRect(f.L, f.Tp, xe - f.L, f.ph); c.globalAlpha = 1;
+    c.fillStyle = css('--muted'); c.textAlign = 'left'; c.textBaseline = 'bottom'; if (xe - f.L > 34) c.fillText('excl.', f.L + 3, base - 3); }
+  const col = css('--s1');
+  for (let i = 0; i < nb; i++) bar(c, f.X(i * bw) + 1, f.X((i + 1) * bw) - 1, f.Y(val[i]), base, col, f.Tp);
+  if (sm.n) { c.strokeStyle = css('--fg'); c.lineWidth = 1.2; c.setLineDash([4, 3]); const mx = f.X(sm.mean); c.beginPath(); c.moveTo(mx, f.Tp); c.lineTo(mx, base); c.stroke(); c.setLineDash([]);
+    c.fillStyle = css('--fg'); c.textBaseline = 'top'; const lbl = `mean ${sm.mean.toFixed(3)}`, tw = c.measureText(lbl).width; c.textAlign = mx + tw + 6 > w - f.Rm ? 'right' : 'left'; c.fillText(lbl, mx + (c.textAlign === 'right' ? -4 : 4), f.Tp + 2); }
+  else { c.fillStyle = css('--muted'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('조건에 맞는 grain이 없습니다', f.L + f.pw / 2, f.Tp + f.ph / 2); }
+  histGeo = { bw, nb, val, cnt, L: f.L, pw: f.pw, xmax };
+}
+$('hist').addEventListener('pointermove', e => { const g = histGeo; if (!g) return; const r = e.target.getBoundingClientRect(), x = e.clientX - r.left;
+  const i = Math.floor((x - g.L) / g.pw * g.xmax / g.bw), tip = $('ctip'); if (i < 0 || i >= g.nb) { tip.hidden = true; return; }
+  tip.hidden = false; tip.textContent = `${(i * g.bw).toFixed(3)}–${((i + 1) * g.bw).toFixed(3)} µm · ${g.val[i].toFixed(1)} % · n=${g.cnt[i]}`;
+  tip.style.left = Math.min(x + 10, r.width - tip.offsetWidth) + 'px'; tip.style.top = '24px'; });
+$('hist').addEventListener('pointerleave', () => $('ctip').hidden = true);
+{ const t = document.createElement('div'); t.className = 'tip'; t.id = 'ctip'; t.hidden = true; $('hist').parentNode.appendChild(t); }
+
+// compare
+const SER = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
+$('addCmp').onclick = () => {
+  if (!S.res || !S.res.sm.n) return toast('분석 결과가 없습니다.');
+  const used = new Set(S.cmp.map(x => x.ci)); const ci = [...Array(8).keys()].find(i => !used.has(i));
+  if (ci === undefined) return toast('비교는 최대 8개까지 가능합니다.');
+  const tag = $('tag').value.trim() || S.name || `Sample ${S.cmpSeq + 1}`; S.cmpSeq++;
+  S.cmp.push({ tag, ci, sm: S.res.sm, it: S.res.it, nmpx: S.nmpx, file: S.name, g: S.res.inc.map(g => [g.ecd, g.area]) }); $('tag').value = ''; renderCmp(); toast(`"${tag}" 추가되었습니다.`);
+};
+function renderCmp() {
+  const t = $('cmpT');
+  if (!S.cmp.length) { t.innerHTML = `<tr><td class="sub" style="text-align:left;white-space:normal">현재 결과를 tag와 함께 추가하면 조건별 분포를 비교할 수 있습니다.</td></tr>`; $('cdfWrap').hidden = true; return; }
+  t.innerHTML = `<tr><th>Tag</th><th>N</th><th>Mean</th><th>D50</th><th>Lx/Ly</th><th></th></tr>` + S.cmp.map((s, i) =>
+    `<tr><td><span class="chip" style="background:var(${SER[s.ci]})"></span>${esc(s.tag)}</td><td>${s.sm.n}</td><td>${s.sm.mean.toFixed(3)}</td><td>${s.sm.d50.toFixed(3)}</td><td>${(s.it.Lx / s.it.Ly).toFixed(2)}</td><td><button class="x" data-i="${i}" aria-label="삭제" title="삭제"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></button></td></tr>`).join('');
+  t.querySelectorAll('.x').forEach(b => b.onclick = () => { S.cmp.splice(+b.dataset.i, 1); renderCmp(); });
+  $('cdfWrap').hidden = false; drawCdf();
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let cdfGeo = null;
+function drawCdf() {
+  if (!S.cmp.length) return; const cv = $('cdf'), { c, w, h } = setupCanvas(cv); c.clearRect(0, 0, w, h);
+  const xmax0 = Math.max(...S.cmp.map(s => quant(s.sm.sorted, 0.99))) * 1.05, xs0 = niceStep(xmax0, 5), xmax = S.xmax || Math.ceil(xmax0 / xs0) * xs0;
+  if (S.cmode === 'bar') {
+    const nb = Math.max(6, Math.min(S.bins, 16)), bw = xmax / nb, sets = S.cmp.map(s => binVals(s.g, nb, bw));
+    const ymax0 = Math.max(5, ...sets.flatMap(v => v.val)) * 1.1, ys = niceStep(ymax0, 4), ymax = Math.ceil(ymax0 / ys) * ys;
+    const f = frame(c, w, h, xmax, ymax, S.hmode === 'n' ? 'Number fraction (%)' : 'Area fraction (%)', 'ECD (µm)'), base = f.Tp + f.ph, k = S.cmp.length;
+    for (let i = 0; i < nb; i++) { const x0 = f.X(i * bw) + 1.5, x1 = f.X((i + 1) * bw) - 1.5, sw = (x1 - x0) / k;
+      S.cmp.forEach((s, j) => bar(c, x0 + j * sw + (k > 1 ? 0.5 : 0), x0 + (j + 1) * sw - (k > 1 ? 0.5 : 0), f.Y(sets[j].val[i]), base, css(SER[s.ci]), f.Tp)); }
+    cdfGeo = { mode: 'bar', L: f.L, pw: f.pw, xmax, nb, bw, sets };
+    return;
+  }
+  const f = frame(c, w, h, xmax, 100, 'Cumulative number (%)', 'ECD (µm)');
+  for (const s of S.cmp) { const e = s.sm.sorted, n = e.length; c.strokeStyle = css(SER[s.ci]); c.lineWidth = 2; c.beginPath(); c.moveTo(f.X(0), f.Y(0));
+    e.forEach((v, i) => { c.lineTo(f.X(Math.min(v, xmax)), f.Y(100 * i / n)); c.lineTo(f.X(Math.min(v, xmax)), f.Y(100 * (i + 1) / n)); }); c.lineTo(f.X(xmax), f.Y(100)); c.stroke(); }
+  cdfGeo = { mode: 'cdf', L: f.L, pw: f.pw, xmax };
+}
+$('cdf').addEventListener('pointermove', e => { const g = cdfGeo; if (!g) return; const r = e.target.getBoundingClientRect(), x = e.clientX - r.left, v = (x - g.L) / g.pw * g.xmax, tip = $('dtip');
+  if (v < 0 || v > g.xmax) { tip.hidden = true; return; } tip.hidden = false;
+  if (g.mode === 'bar') { const i = Math.min(g.nb - 1, Math.floor(v / g.bw));
+    tip.innerHTML = `${(i * g.bw).toFixed(3)}–${((i + 1) * g.bw).toFixed(3)} µm<br>` + S.cmp.map((s, j) => `<span class="chip" style="background:var(${SER[s.ci]})"></span>${esc(s.tag)} ${g.sets[j].val[i].toFixed(1)} %`).join('<br>'); }
+  else tip.innerHTML = `ECD ≤ ${v.toFixed(3)} µm<br>` + S.cmp.map(s => { const e = s.sm.sorted; let k = 0; while (k < e.length && e[k] <= v) k++; return `<span class="chip" style="background:var(${SER[s.ci]})"></span>${esc(s.tag)} ${(100 * k / e.length).toFixed(0)} %`; }).join('<br>');
+  tip.style.left = Math.max(0, Math.min(x + 12, r.width - tip.offsetWidth)) + 'px'; tip.style.top = '10px'; });
+$('cdf').addEventListener('pointerleave', () => $('dtip').hidden = true);
+{ const t = document.createElement('div'); t.className = 'tip'; t.id = 'dtip'; t.hidden = true; $('cdf').parentNode.appendChild(t); }
+
+// ---------------- export ----------------
+let dl = null; (async () => { try { if (window.claude && window.claude.use) dl = await window.claude.use('downloads'); } catch (e) { dl = null; } })();
+async function save(filename, data) {
+  if (dl) { try { await dl.save({ filename, data }); toast('저장되었습니다.'); } catch (e) { if (e && e.code !== 'declined') toast('저장하지 못했습니다: ' + (e.message || e.code)); } return; }
+  const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/plain' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const stem = () => (S.name || 'sem').replace(/\.[^.]+$/, '');
+const csv = rows => '﻿' + rows.map(r => r.map(v => typeof v === 'string' && /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(',')).join('\n');
+const paramRows = () => [['file', S.name], ['pixel_nm', S.nmpx], ['working_scale', S.p.f], ['gb_type', S.p.mode], ['polarity', S.p.pol], ['line_sigma_px', S.p.sigma], ['line_filter_px', S.p.L], ['thr_high', S.p.hi], ['thr_low', S.p.lo], ['seed_h_px', S.p.h], ['merge_weak', S.p.merge], ['min_ecd_nm', S.minEcd], ['exclude_edge', S.edge], ['roi_px', `${S.roi.x0} ${S.roi.y0} ${S.roi.x1} ${S.roi.y1}`], ['manual_edits', S.edits.length]];
+$('exGrains').onclick = () => { if (!S.res) return; const f = S.p.f;
+  save(stem() + '_grains.csv', csv([['id', 'area_um2', 'ECD_um', 'major_um', 'minor_um', 'aspect_ratio', 'angle_deg', 'cx_px', 'cy_px', 'touches_roi_edge', 'included'],
+    ...S.res.all.map(g => [g.id, g.area.toFixed(6), g.ecd.toFixed(5), g.major.toFixed(5), g.minor.toFixed(5), g.ar.toFixed(3), g.angle.toFixed(1), (g.cx * f).toFixed(1), (g.cy * f).toFixed(1), g.edge ? 1 : 0, g.inc ? 1 : 0])])); };
+$('exSum').onclick = () => { if (!S.res) return; const { sm, it } = S.res;
+  save(stem() + '_summary.csv', csv([['metric', 'value'], ['N_grains', sm.n], ['mean_ECD_um', sm.mean], ['sd_ECD_um', sm.sd], ['D10_um', sm.d10], ['D50_um', sm.d50], ['D90_um', sm.d90], ['area_weighted_ECD_um', sm.aw], ['mean_aspect_ratio', sm.ar], ['intercept_Lx_um', it.Lx], ['intercept_Ly_um', it.Ly], ['Lx_over_Ly', it.Lx / it.Ly], ...paramRows()])); };
+$('exCmp').onclick = () => { if (!S.cmp.length) return toast('비교 목록이 비어 있습니다.');
+  save('grain_compare.csv', csv([['tag', 'file', 'pixel_nm', 'N', 'mean_ECD_um', 'sd_um', 'D10_um', 'D50_um', 'D90_um', 'area_weighted_ECD_um', 'mean_AR', 'Lx_um', 'Ly_um'],
+    ...S.cmp.map(s => [s.tag, s.file, s.nmpx, s.sm.n, s.sm.mean, s.sm.sd, s.sm.d10, s.sm.d50, s.sm.d90, s.sm.aw, s.sm.ar, s.it.Lx, s.it.Ly])])); };
+$('exPng').onclick = () => { if (!S.base) return; const cv = document.createElement('canvas'); cv.width = S.W0; cv.height = S.H0; const c = cv.getContext('2d'), f = S.p.f;
+  c.drawImage(S.base, 0, 0); c.imageSmoothingEnabled = false; if (S.view === 'grains' && ovG) { c.globalAlpha = .5; c.drawImage(ovG, 0, 0, S.W0, S.H0); c.globalAlpha = 1; } if (ovB) c.drawImage(ovB, 0, 0, ovB.width * f, ovB.height * f);
+  cv.toBlob(b => save(stem() + '_gb_overlay.png', b), 'image/png'); };
+$('exHist').onclick = () => { const cv = $('hist'), o = document.createElement('canvas'); o.width = cv.width; o.height = cv.height; const c = o.getContext('2d'); c.fillStyle = css('--panel'); c.fillRect(0, 0, o.width, o.height); c.drawImage(cv, 0, 0); o.toBlob(b => save(stem() + '_ecd_hist.png', b), 'image/png'); };
+
+let toastT = null;
+function toast(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+// theme / resize
+const rerender = () => { if (S.c.lab) { buildOverlay(); drawOverlayColors(); } drawHist(); drawCdf(); render(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rerender);
+new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+new ResizeObserver(() => { resize(); drawHist(); drawCdf(); }).observe(stage);
+addEventListener('resize', () => { drawHist(); drawCdf(); });
+
+// init
+document.querySelectorAll('#hmode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.h === S.hmode));
+document.querySelectorAll('#cmode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === S.cmode));
+setTool('pan'); setView('overlay'); renderCmp(); resize();
+loadSample();
+window.__S = S;
+})();
+</script>

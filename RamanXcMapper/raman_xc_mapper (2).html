@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raman Xc Mapper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#f7f8fa;
+    --panel2:#ffffff;
+    --line:#dfe3e9;
+    --text:#1b2230;
+    --sub:#6b7484;
+    --accent:#0f9d68;   /* 532nm 라만 여기광 그린 */
+    --accent2:#c97a12;  /* c-Si 결정 피크 앰버 */
+    --danger:#e0323f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Space Grotesk',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  header{
+    padding:28px 32px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  }
+  header h1{
+    margin:0; font-size:20px; font-weight:700; letter-spacing:0.5px;
+  }
+  header h1 span{color:var(--accent);}
+  header p{margin:4px 0 0; color:var(--sub); font-size:13px;}
+  .layout{display:grid; grid-template-columns:340px 1fr; gap:0; min-height:calc(100vh - 84px);}
+  .sidebar{
+    border-right:1px solid var(--line); padding:20px; overflow-y:auto;
+    background:var(--panel);
+  }
+  .group{margin-bottom:18px; border:1px solid var(--line); border-radius:10px; padding:14px; background:var(--panel2);}
+  .group h3{
+    margin:0 0 10px; font-size:11px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--accent); font-weight:600;
+  }
+  .row{display:flex; gap:8px; margin-bottom:8px;}
+  .field{flex:1; min-width:0;}
+  .field label{display:block; font-size:10.5px; color:var(--sub); margin-bottom:3px;}
+  .field input, .field select{
+    width:100%; background:#ffffff; border:1px solid var(--line); color:var(--text);
+    border-radius:6px; padding:6px 8px; font-size:12.5px; font-family:'JetBrains Mono',monospace;
+  }
+  .field input:focus, .field select:focus{outline:1px solid var(--accent); border-color:var(--accent);}
+  .formula{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--accent2);
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-top:6px;
+  }
+  .filebtn{
+    display:block; width:100%; text-align:center; padding:10px; border:1px dashed var(--line);
+    border-radius:8px; color:var(--sub); font-size:12.5px; cursor:pointer; margin-bottom:10px;
+  }
+  .filebtn:hover{border-color:var(--accent); color:var(--accent);}
+  input[type=file]{display:none;}
+  .runbtn{
+    width:100%; padding:11px; border:none; border-radius:8px; background:var(--accent);
+    color:#04140d; font-weight:700; font-size:13px; cursor:pointer; letter-spacing:0.3px;
+  }
+  .runbtn:disabled{background:#2a3240; color:#5b6473; cursor:not-allowed;}
+  .runbtn:hover:not(:disabled){filter:brightness(1.08);}
+  #grid-preview{
+    display:grid; gap:2px; margin-top:10px;
+  }
+  .cell{width:100%; aspect-ratio:1; border-radius:2px; background:#e9ecf1;}
+  .cell.ok{background:var(--accent);}
+  .cell.missing{background:var(--danger);}
+  #log{
+    margin-top:12px; font-size:11px; color:var(--sub); max-height:140px; overflow-y:auto;
+    border-top:1px solid var(--line); padding-top:8px; line-height:1.6;
+  }
+  .log-err{color:var(--danger);}
+  .log-ok{color:var(--accent);}
+  main{padding:20px 28px;}
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:18px; flex-wrap:wrap;}
+  .tab{
+    padding:9px 16px; font-size:12.5px; color:var(--sub); cursor:pointer; border-bottom:2px solid transparent;
+    font-weight:600;
+  }
+  .tab.active{color:var(--accent); border-color:var(--accent);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .plotwrap{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px;}
+  .controlsline{display:flex; gap:14px; align-items:center; margin-bottom:12px; flex-wrap:wrap; font-size:12px; color:var(--sub);}
+  .controlsline select, .controlsline input[type=range]{font-family:'JetBrains Mono',monospace;}
+  .empty{
+    display:flex; align-items:center; justify-content:center; height:420px; color:var(--sub); font-size:13px;
+    border:1px dashed var(--line); border-radius:10px;
+  }
+  .badge{
+    display:inline-block; padding:2px 8px; border-radius:999px; background:#ffffff; border:1px solid var(--line);
+    font-size:10.5px; color:var(--sub); margin-left:8px;
+  }
+  .exportbtn{
+    padding:6px 12px; border:1px solid var(--line); background:#ffffff; color:var(--sub);
+    border-radius:6px; font-size:11.5px; cursor:pointer;
+  }
+  .exportbtn:hover{color:var(--accent); border-color:var(--accent);}
+  .twocol{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr;}
+    .sidebar{border-right:none; border-bottom:1px solid var(--line);}
+    .twocol{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>RAMAN <span>Xc</span> MAPPER</h1>
+    <p>a-Si / c-Si 피크 맵 + despike + 결정성 분율 Xc 매핑 — 업로드한 MATLAB 파이프라인을 그대로 재현</p>
+  </div>
+  <div class="badge mono" id="statusBadge">파일 대기 중</div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+
+    <div class="group">
+      <h3>Scan Grid</h3>
+      <div class="row">
+        <div class="field"><label>nkx</label><input type="number" id="nkx" value="25"></div>
+        <div class="field"><label>nky</label><input type="number" id="nky" value="25"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>dx (µm)</label><input type="number" id="dx" value="2"></div>
+        <div class="field"><label>dy (µm)</label><input type="number" id="dy" value="2"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Spectral Bands</h3>
+      <div class="row">
+        <div class="field"><label>offset r0</label><input type="number" id="r0" value="260"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>a-Si min</label><input type="number" id="ramin" value="480"></div>
+        <div class="field"><label>a-Si max</label><input type="number" id="ramax" value="490"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>c-Si min</label><input type="number" id="rcmin" value="510"></div>
+        <div class="field"><label>c-Si max</label><input type="number" id="rcmax" value="530"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Despike (median filter)</h3>
+      <div class="row">
+        <div class="field"><label>window</label><input type="number" id="dwin" value="3"></div>
+        <div class="field"><label>tau (σ)</label><input type="number" id="dtau" value="3.5" step="0.1"></div>
+        <div class="field"><label>max iter</label><input type="number" id="diter" value="2"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Crystalline Fraction</h3>
+      <div class="row">
+        <div class="field"><label>α (a-Si 보정계수)</label><input type="number" id="alpha" value="0.8" step="0.05"></div>
+      </div>
+      <div class="formula">Xc = Ic / (Ic + α·Ia)<br>Ia,Ic = 밴드 내 trapz 적분 면적</div>
+    </div>
+
+    <div class="group">
+      <h3>Files</h3>
+      <label class="filebtn" for="fileInput" id="filebtnLabel">.txt 스펙트럼 파일 선택 (여러 개)</label>
+      <input type="file" id="fileInput" multiple accept=".txt">
+      <div id="grid-preview"></div>
+      <div id="log"></div>
+    </div>
+
+    <button class="runbtn" id="runBtn" disabled>PROCESS</button>
+
+  </aside>
+
+  <main>
+    <div class="tabs">
+      <div class="tab active" data-tab="asi">a-Si Map</div>
+      <div class="tab" data-tab="csi">c-Si Map</div>
+      <div class="tab" data-tab="xc">Xc Map</div>
+      <div class="tab" data-tab="spectra">Spectra Overlay</div>
+      <div class="tab" data-tab="cross">Cross-section</div>
+    </div>
+
+    <div class="panel active" id="panel-asi">
+      <div class="controlsline">a-Si 밴드 최대 피크 강도 맵 (top view) &nbsp;<span class="badge">despiked</span>
+        <span style="flex:1"></span>
+        <button class="exportbtn" id="exp-asi">Export CSV</button>
+      </div>
+      <div class="plotwrap"><div id="plot-asi" style="height:520px;"></div></div>
+    </div>
+
+    <div class="panel" id="panel-csi">
+      <div class="controlsline">c-Si 밴드 최대 피크 강도 맵 (top view) &nbsp;<span class="badge">despiked</span>
+        <span style="flex:1"></span>
+        <button class="exportbtn" id="exp-csi">Export CSV</button>
+      </div>
+      <div class="plotwrap"><div id="plot-csi" style="height:520px;"></div></div>
+    </div>
+
+    <div class="panel" id="panel-xc">
+      <div class="controlsline">결정성 분율 Xc = Ic/(Ic+α·Ia), 0–1 클램프 &nbsp;<span class="badge">despiked</span>
+        <span style="flex:1"></span>
+        <button class="exportbtn" id="exp-xc">Export CSV</button>
+      </div>
+      <div class="plotwrap"><div id="plot-xc" style="height:520px;"></div></div>
+    </div>
+
+    <div class="panel" id="panel-spectra">
+      <div class="controlsline">
+        a-Si/c-Si 맵 위 지점을 클릭하면 원본 스펙트럼이 아래에 오버레이됩니다.
+        <span style="flex:1"></span>
+        <button class="exportbtn" id="clearSpectra">Clear</button>
+      </div>
+      <div class="twocol">
+        <div class="plotwrap"><div id="plot-pick" style="height:460px;"></div></div>
+        <div class="plotwrap"><div id="plot-spectra" style="height:460px;"></div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-cross">
+      <div class="controlsline">
+        <label>맵</label>
+        <select id="crossMap">
+          <option value="c">c-Si</option>
+          <option value="a">a-Si</option>
+          <option value="xc">Xc</option>
+        </select>
+        <label>단면</label>
+        <select id="crossAxis">
+          <option value="x">X-cut (Y축 방향 프로파일)</option>
+          <option value="y">Y-cut (X축 방향 프로파일)</option>
+        </select>
+        <label>위치 (µm)</label>
+        <input type="range" id="crossPos" min="0" max="100" value="30" step="1">
+        <span class="mono" id="crossPosVal">30 µm</span>
+      </div>
+      <div class="plotwrap"><div id="plot-cross" style="height:480px;"></div></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const turboColorscale = [
+  [0.0,'#30123b'],[0.1,'#4453c9'],[0.2,'#3e8ff3'],[0.3,'#1fc0dd'],
+  [0.4,'#20e4a8'],[0.5,'#82f560'],[0.6,'#c6ef34'],[0.7,'#fabf2c'],
+  [0.8,'#fb7d20'],[0.9,'#e2431a'],[1.0,'#7a0403']
+];
+
+let uploaded = {};      // fileIndex -> {x:[], y:[], name}
+let N = 0, nkx = 25, nky = 25;
+let state = null;       // holds computed grids after processing
+
+function log(msg, cls){
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function linspace(a,b,n){
+  if(n<=1) return [a];
+  const out = new Array(n);
+  const step = (b-a)/(n-1);
+  for(let i=0;i<n;i++) out[i] = a + step*i;
+  return out;
+}
+
+function trapz(x,y){
+  let s=0;
+  for(let i=0;i<x.length-1;i++) s += (y[i]+y[i+1])/2*(x[i+1]-x[i]);
+  return Math.abs(s);
+}
+
+function bandMax(xArr,yArr,lo,hi){
+  let m = -Infinity, found=false;
+  for(let i=0;i<xArr.length;i++){
+    if(xArr[i]>=lo && xArr[i]<=hi){ found=true; if(yArr[i]>m) m=yArr[i]; }
+  }
+  return found ? m : 0;
+}
+function bandTrapz(xArr,yArr,lo,hi){
+  const xs=[], ys=[];
+  for(let i=0;i<xArr.length;i++){
+    if(xArr[i]>=lo && xArr[i]<=hi){ xs.push(xArr[i]); ys.push(yArr[i]); }
+  }
+  if(xs.length<2) return 0;
+  return trapz(xs,ys);
+}
+
+function medfilt2Symmetric(C, win){
+  const ny=C.length, nx=C[0].length, half=Math.floor(win/2);
+  const out = Array.from({length:ny},()=>new Array(nx).fill(0));
+  for(let i=0;i<ny;i++){
+    for(let j=0;j<nx;j++){
+      const vals=[];
+      for(let di=-half; di<=half; di++){
+        for(let dj=-half; dj<=half; dj++){
+          let ii=i+di, jj=j+dj;
+          if(ii<0) ii=-ii-1; if(ii>=ny) ii=2*ny-ii-1;
+          if(jj<0) jj=-jj-1; if(jj>=nx) jj=2*nx-jj-1;
+          ii=Math.min(Math.max(ii,0),ny-1); jj=Math.min(Math.max(jj,0),nx-1);
+          vals.push(C[ii][jj]);
+        }
+      }
+      vals.sort((a,b)=>a-b);
+      out[i][j]=vals[Math.floor(vals.length/2)];
+    }
+  }
+  return out;
+}
+
+function despikeMap(Cin, win, tau, maxIter){
+  let C = Cin.map(r=>r.slice());
+  const ny=C.length, nx=C[0].length;
+  for(let it=0; it<maxIter; it++){
+    const M = medfilt2Symmetric(C, win);
+    const R = C.map((row,i)=>row.map((v,j)=>v-M[i][j]));
+    const MAD = medfilt2Symmetric(R.map(row=>row.map(Math.abs)), win)
+                  .map(row=>row.map(v=>v+Number.EPSILON));
+    const Sig = MAD.map(row=>row.map(v=>1.4826*v));
+    let any=false;
+    for(let i=0;i<ny;i++) for(let j=0;j<nx;j++){
+      if(Math.abs(R[i][j]) > tau*Sig[i][j]){ C[i][j]=M[i][j]; any=true; }
+    }
+    if(!any) break;
+  }
+  return C;
+}
+
+// ---------- File handling ----------
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files);
+  document.getElementById('log').innerHTML='';
+  uploaded = {};
+  document.getElementById('filebtnLabel').textContent = files.length + '개 파일 로드됨';
+  log(`${files.length}개 파일 파싱 중...`);
+
+  for(const f of files){
+    const m = f.name.match(/(\d+)(?=\.\w+$)/);
+    if(!m){ log(`⚠ 파일명에서 번호를 찾지 못함: ${f.name}`, 'log-err'); continue; }
+    const idx = parseInt(m[1],10);
+    const text = await f.text();
+    const lines = text.split(/\r?\n/);
+    const x=[], y=[];
+    for(const ln of lines){
+      const parts = ln.trim().split(/[\s,\t]+/);
+      if(parts.length<2) continue;
+      const a=parseFloat(parts[0]), b=parseFloat(parts[1]);
+      if(!isNaN(a) && !isNaN(b)){ x.push(a); y.push(b); }
+    }
+    if(x.length===0){ log(`⚠ 숫자 데이터 없음: ${f.name}`, 'log-err'); continue; }
+    uploaded[idx] = {x,y,name:f.name};
+  }
+  log(`${Object.keys(uploaded).length}개 파일 매칭 완료`, 'log-ok');
+  refreshGridPreview();
+});
+
+function refreshGridPreview(){
+  nkx = parseInt(document.getElementById('nkx').value,10);
+  nky = parseInt(document.getElementById('nky').value,10);
+  N = nkx*nky;
+  const grid = document.getElementById('grid-preview');
+  grid.style.gridTemplateColumns = `repeat(${nkx}, 1fr)`;
+  grid.innerHTML='';
+  let missing=0;
+  for(let idx=1; idx<=N; idx++){
+    const c = document.createElement('div');
+    c.className = 'cell ' + (uploaded[idx] ? 'ok' : 'missing');
+    c.title = `#${idx}` + (uploaded[idx] ? ` — ${uploaded[idx].name}` : ' — 누락');
+    if(!uploaded[idx]) missing++;
+    grid.appendChild(c);
+  }
+  document.getElementById('runBtn').disabled = (missing>0 || N===0);
+  document.getElementById('statusBadge').textContent = missing>0
+    ? `${missing}개 파일 누락 (총 ${N})`
+    : `${N}개 파일 준비 완료`;
+  if(missing>0) log(`⚠ ${missing}개 파일이 grid(${nkx}×${nky}=${N})에 대해 누락됨`, 'log-err');
+}
+['nkx','nky'].forEach(id=>document.getElementById(id).addEventListener('input', refreshGridPreview));
+
+// ---------- Processing pipeline ----------
+document.getElementById('runBtn').addEventListener('click', ()=>{
+  const dx=+document.getElementById('dx').value, dy=+document.getElementById('dy').value;
+  const r0=+document.getElementById('r0').value;
+  const ramin=+document.getElementById('ramin').value, ramax=+document.getElementById('ramax').value;
+  const rcmin=+document.getElementById('rcmin').value, rcmax=+document.getElementById('rcmax').value;
+  const dwin=+document.getElementById('dwin').value, dtau=+document.getElementById('dtau').value, diter=+document.getElementById('diter').value;
+  const alpha=+document.getElementById('alpha').value;
+
+  const Lx=dx*nkx, Ly=dy*nky;
+  const nx = linspace(0,Lx,nkx), ny = linspace(0,Ly,nky);
+
+  const data_a = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const data_c = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const ia_map = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const ic_map = Array.from({length:nky},()=>new Array(nkx).fill(0));
+  const specByK = {}; // k(1-based) -> {x,y(spec, offset-corrected)}
+
+  // 파일번호 = (row-1)*nkx + col : 실측 순서 그대로(좌상단=1 ... 우하단=N), 반전/회전 없음
+  for(let kyi=1; kyi<=nky; kyi++){
+    for(let kxi=1; kxi<=nkx; kxi++){
+      const kfile = (kyi-1)*nkx + kxi;
+      const raw = uploaded[kfile];
+      const spec = raw.y.map(v=>v-r0);
+      data_a[kyi-1][kxi-1] = bandMax(raw.x, spec, ramin, ramax);
+      data_c[kyi-1][kxi-1] = bandMax(raw.x, spec, rcmin, rcmax);
+      ia_map[kyi-1][kxi-1] = bandTrapz(raw.x, spec, ramin, ramax);
+      ic_map[kyi-1][kxi-1] = bandTrapz(raw.x, spec, rcmin, rcmax);
+      specByK[kfile] = {x:raw.x, y:spec, kx:kxi, ky:kyi};
+    }
+  }
+
+  const data_a_d = despikeMap(data_a, dwin, dtau, diter);
+  const data_c_d = despikeMap(data_c, dwin, dtau, diter);
+  const ia_d = despikeMap(ia_map, dwin, dtau, diter);
+  const ic_d = despikeMap(ic_map, dwin, dtau, diter);
+
+  let Xc = ic_d.map((row,i)=>row.map((v,j)=> v/(v+alpha*ia_d[i][j]+Number.EPSILON) ));
+  Xc = despikeMap(Xc, dwin, dtau, diter);
+  Xc = Xc.map(row=>row.map(v=>Math.min(Math.max(v,0),1)));
+
+  // 세 맵 모두 동일 좌표계(nx,ny) · 동일 방향 · 동일 종횡비 사용 — 별도 회전/보정 없음
+  state = {nx, ny, data_a:data_a_d, data_c:data_c_d, Xc, specByK, alpha};
+
+  log('처리 완료 ✓', 'log-ok');
+  document.getElementById('statusBadge').textContent = '처리 완료';
+
+  plotHeatmap('plot-asi', nx, ny, data_a_d, 'a-Si peak map', 0, autoMax(data_a_d));
+  plotHeatmap('plot-csi', nx, ny, data_c_d, 'c-Si peak map', 0, autoMax(data_c_d));
+  plotHeatmap('plot-xc', nx, ny, Xc, 'Crystalline fraction Xc (α=' + alpha.toFixed(2) + ')', 0, 1);
+  plotHeatmap('plot-pick', nx, ny, data_c_d, '지점 클릭 → 스펙트럼 표시 (c-Si 맵 기준, 파일번호 = 실측 순번)', 0, autoMax(data_c_d), true);
+
+  buildCrossSection();
+});
+
+function autoMax(M){
+  let m=0; M.forEach(r=>r.forEach(v=>{ if(v>m) m=v; }));
+  return m || 1;
+}
+
+function plotHeatmap(divId, xArr, yArr, Z, title, zmin, zmax, clickable){
+  const trace = {
+    z: Z, x: xArr, y: yArr, type:'heatmap',
+    colorscale: turboColorscale, zmin, zmax,
+    colorbar:{tickfont:{color:'#6b7484', family:'JetBrains Mono'}}
+  };
+  const layout = {
+    title:{text:title, font:{color:'#1b2230', size:13, family:'Space Grotesk'}},
+    paper_bgcolor:'#f7f8fa', plot_bgcolor:'#f7f8fa',
+    font:{color:'#6b7484', family:'JetBrains Mono', size:11},
+    xaxis:{title:'X (µm) — 좌(1열) → 우', gridcolor:'#e5e8ee'},
+    yaxis:{title:'Y (µm) — 상(1행) → 하', gridcolor:'#e5e8ee', scaleanchor:'x', autorange:'reversed'},
+    margin:{t:40,l:50,r:20,b:40}
+  };
+  Plotly.newPlot(divId, [trace], layout, {displaylogo:false, responsive:true});
+
+  if(clickable){
+    document.getElementById(divId).on('plotly_click', (ev)=>{
+      const pt = ev.points[0];
+      const kx = pt.pointIndex[1]+1, ky = pt.pointIndex[0]+1;
+      const k = (ky-1)*nkx + kx; // = 실측 파일번호(kfile)와 동일
+      addSpectrum(k);
+    });
+  }
+}
+
+// ---------- Spectra overlay ----------
+let spectraTraces = [];
+function addSpectrum(k){
+  const s = state.specByK[k];
+  if(!s) return;
+  spectraTraces.push({x:s.x, y:s.y, mode:'lines', name:`#${k} (row${s.ky},col${s.kx})`, line:{width:1.6}});
+  redrawSpectra();
+}
+document.getElementById('clearSpectra').addEventListener('click', ()=>{ spectraTraces=[]; redrawSpectra(); });
+function redrawSpectra(){
+  Plotly.newPlot('plot-spectra', spectraTraces, {
+    title:{text:'선택 지점 스펙트럼 오버레이', font:{color:'#1b2230', size:13}},
+    paper_bgcolor:'#f7f8fa', plot_bgcolor:'#f7f8fa',
+    font:{color:'#6b7484', family:'JetBrains Mono', size:11},
+    xaxis:{title:'Wavenumber (cm⁻¹)', range:[200,800], gridcolor:'#e5e8ee'},
+    yaxis:{title:'Intensity (a.u.)', gridcolor:'#e5e8ee'},
+    legend:{font:{size:10}},
+    margin:{t:40,l:55,r:20,b:40}
+  }, {displaylogo:false, responsive:true});
+}
+
+// ---------- Cross-section ----------
+function buildCrossSection(){
+  const Lx = state.nx[state.nx.length-1], Ly = state.ny[state.ny.length-1];
+  const axis = document.getElementById('crossAxis').value;
+  const slider = document.getElementById('crossPos');
+  slider.max = axis==='x' ? Lx : Ly;
+  slider.value = Math.round((axis==='x'?Lx:Ly)/2);
+  drawCrossSection();
+}
+document.getElementById('crossAxis').addEventListener('change', buildCrossSection);
+document.getElementById('crossMap').addEventListener('change', drawCrossSection);
+document.getElementById('crossPos').addEventListener('input', drawCrossSection);
+
+function nearestIdx(arr, v){
+  let bi=0, bd=Infinity;
+  arr.forEach((a,i)=>{ const d=Math.abs(a-v); if(d<bd){bd=d;bi=i;} });
+  return bi;
+}
+
+function drawCrossSection(){
+  if(!state) return;
+  const which = document.getElementById('crossMap').value;
+  const axis = document.getElementById('crossAxis').value;
+  const pos = +document.getElementById('crossPos').value;
+  document.getElementById('crossPosVal').textContent = pos + ' µm';
+  const M = which==='a' ? state.data_a : which==='c' ? state.data_c : state.Xc;
+
+  let xline, yline, xlabel;
+  if(axis==='x'){
+    const kxIdx = nearestIdx(state.nx, pos);
+    yline = state.ny.map((_,i)=>M[i][kxIdx]);
+    xline = state.ny;
+    xlabel = 'Y (µm)';
+  } else {
+    const kyIdx = nearestIdx(state.ny, pos);
+    yline = state.nx.map((_,j)=>M[kyIdx][j]);
+    xline = state.nx;
+    xlabel = 'X (µm)';
+  }
+
+  Plotly.newPlot('plot-cross', [{
+    x:xline, y:yline, mode:'lines', line:{color:'#ffb020', width:2}
+  }], {
+    title:{text:`Cross-section (${which==='a'?'a-Si':which==='c'?'c-Si':'Xc'})`, font:{color:'#1b2230', size:13}},
+    paper_bgcolor:'#f7f8fa', plot_bgcolor:'#f7f8fa',
+    font:{color:'#6b7484', family:'JetBrains Mono', size:11},
+    xaxis:{title:xlabel, gridcolor:'#e5e8ee'},
+    yaxis:{title: which==='xc' ? 'Xc' : 'Intensity (a.u.)', gridcolor:'#e5e8ee'},
+    margin:{t:40,l:55,r:20,b:40}
+  }, {displaylogo:false, responsive:true});
+}
+
+// ---------- Export ----------
+function exportCSV(M, name){
+  let csv = M.map(row=>row.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+}
+document.getElementById('exp-asi').addEventListener('click', ()=> state && exportCSV(state.data_a,'a-Si_map.csv'));
+document.getElementById('exp-csi').addEventListener('click', ()=> state && exportCSV(state.data_c,'c-Si_map.csv'));
+document.getElementById('exp-xc').addEventListener('click', ()=> state && exportCSV(state.Xc,'Xc_map.csv'));
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+  });
+});
+
+refreshGridPreview();
+</script>
+</body>
+</html>

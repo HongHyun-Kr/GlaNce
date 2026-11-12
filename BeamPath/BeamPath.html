@@ -1,0 +1,1789 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>BeamPath</title>
+<style>
+/* Layout: engineering-workbench shell (ribbon / analysis tree / settings / graphics + messages), one light visual world like desktop CAE tools */
+:root {
+  color-scheme: light;
+  --app: #ececec;
+  --chrome: #f6f6f6;
+  --panel: #ffffff;
+  --line: #cfcfcf;
+  --line2: #e3e3e3;
+  --text: #1e1e1e;
+  --text2: #555;
+  --muted: #8c8c8c;
+  --blue: #1f63b5;
+  --blue-d: #154a8a;
+  --sel: #cfe3f6;
+  --hov: #e8f1fa;
+  --green: #2e8b3a;
+  --gb: #ffb000;
+  --s1: #2a78d6; --s2: #e0601f; --s3: #1a9f70; --s4: #c98500; --s5: #d55181; --s6: #2f7d2f; --s7: #6a5acd; --s8: #c83c3b;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", "Apple SD Gothic Neo", "Malgun Gothic", Arial, sans-serif;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--app); color: var(--text); font: 12px/1.4 var(--ui); -webkit-font-smoothing: antialiased; overflow: hidden; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+svg.i { width: 16px; height: 16px; flex: none; }
+svg.ib { width: 30px; height: 30px; flex: none; }
+
+#app { height: 100%; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+
+/* title / quick access */
+.appbar { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: var(--chrome); border-bottom: 1px solid var(--line2); }
+.appbar .logo { width: 20px; height: 20px; display: block; }
+.appbar .qa { display: flex; gap: 2px; }
+.qbtn { width: 24px; height: 22px; display: grid; place-items: center; border: 1px solid transparent; background: none; border-radius: 3px; cursor: pointer; padding: 0; }
+.qbtn:hover { background: var(--hov); border-color: #bcd6ef; }
+.qbtn:disabled { opacity: .35; cursor: default; background: none; border-color: transparent; }
+.appbar .ttl { flex: 1; text-align: center; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 80px; }
+
+/* ribbon */
+.rtabs { display: flex; gap: 2px; padding: 0 8px; background: var(--chrome); }
+.rtab { border: 0; background: none; padding: 6px 12px 5px; font-size: 13px; color: var(--text); cursor: pointer; border-bottom: 2px solid transparent; }
+.rtab:hover { color: var(--blue); }
+.rtab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+.ribbon { background: var(--chrome); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+.rpage { display: flex; align-items: stretch; min-width: max-content; padding: 4px 4px 0; height: 104px; box-sizing: border-box; }
+.rgroup { display: flex; flex-direction: column; padding: 0 5px; border-right: 1px solid var(--line2); }
+.rgroup:last-child { border-right: 0; }
+.rbody { display: flex; align-items: flex-start; gap: 2px; flex: 1; }
+.rlabel { text-align: center; color: var(--text2); font-size: 11.5px; padding: 3px 0 4px; }
+.bbtn { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 44px; padding: 4px 3px; border: 1px solid transparent; background: none; border-radius: 3px; cursor: pointer; text-align: center; line-height: 1.15; }
+.bbtn span { font-size: 12px; white-space: nowrap; }
+.bbtn:hover, .sbtn:hover { background: var(--hov); border-color: #bcd6ef; }
+.bbtn[aria-pressed="true"], .sbtn[aria-pressed="true"] { background: var(--sel); border-color: #8fbbe6; }
+.bbtn[data-pane]:not(:hover) { background: none; border-color: transparent; }
+@keyframes pulse { 0% { background: #cfe3f8; border-color: #8fbbe6; } 100% { background: none; border-color: transparent; } }
+.pulse { animation: pulse .9s ease-out; }
+.bbtn:disabled, .sbtn:disabled { opacity: .45; cursor: default; background: none; border-color: transparent; }
+.scol { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.sbtn { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border: 1px solid transparent; background: none; border-radius: 3px; cursor: pointer; white-space: nowrap; height: 24px; }
+.rfield { display: flex; align-items: center; gap: 6px; height: 24px; white-space: nowrap; color: var(--text2); }
+.rfield select, .rfield input { height: 22px; }
+.dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: #d9822b; display: inline-block; margin-left: 3px; vertical-align: 1px; }
+
+/* workspace */
+.work { display: grid; grid-template-columns: var(--cols, var(--tw, 300px) 5px var(--sw, 330px) 5px minmax(0, 1fr)); padding: 6px; gap: 0; min-height: 0; }
+.right { display: grid; grid-template-rows: var(--rows, minmax(0, 1fr) 5px var(--bh, 170px)); min-width: 0; min-height: 0; }
+.split { background: transparent; }
+.split.v { cursor: col-resize; }
+.split.h { cursor: row-resize; }
+.split:hover { background: #cfe0f2; }
+.pane { background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.phead { display: flex; align-items: center; padding: 6px 10px 2px; }
+.phbtns { margin-left: auto; display: flex; gap: 2px; }
+.phbtns .qbtn { width: 26px; height: 24px; }
+.phbtns svg.i { width: 18px; height: 18px; }
+.ptitle { font-size: 21px; font-weight: 300; color: #2b2b2b; letter-spacing: -.01em; }
+.psub { padding: 0 10px 6px; color: var(--blue); font-size: 12.5px; }
+.ptool { display: flex; gap: 2px; padding: 2px 8px 6px; border-bottom: 1px solid var(--line2); }
+.pbody { flex: 1; overflow: auto; min-height: 0; }
+
+/* tree */
+.tree { list-style: none; margin: 0; padding: 4px 0 8px; }
+.tree ul { list-style: none; margin: 0; padding: 0; }
+.tn { display: flex; align-items: center; gap: 5px; height: 21px; padding-right: 8px; cursor: default; white-space: nowrap; user-select: none; }
+.tn:hover { background: var(--hov); }
+.tn[aria-selected="true"] { background: var(--sel); }
+.tn .tw { width: 12px; height: 12px; display: grid; place-items: center; color: #777; flex: none; }
+.tn .tl { overflow: hidden; text-overflow: ellipsis; }
+.tn .tb { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tn.off .tl { color: var(--muted); }
+.tn .nm { cursor: text; }
+.tn .nm.editing { display: inline-block; min-width: 60px; background: #fff; outline: none; border: 1px solid var(--blue); border-radius: 4px; padding: 1px 6px; line-height: 15px; box-shadow: 0 0 0 2px rgba(31,99,181,.14); user-select: text; -webkit-user-select: text; text-overflow: clip; }
+.tn.renaming { height: 23px; }
+.tn.renaming .tl { overflow: visible; padding: 0 3px; }
+.tree-pane .pbody { position: relative; }
+.dropline { position: absolute; left: 8px; right: 8px; height: 2px; background: var(--blue); pointer-events: none; z-index: 2; }
+.dropline::before { content: ""; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border: 1.5px solid var(--blue); border-radius: 50%; background: #fff; box-sizing: border-box; }
+.scpop { cursor: move; user-select: none; }
+.scpop.dragging { box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.scpop { position: absolute; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 10px; background: #fff; border: 1px solid #c9c9c9; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.18); font-size: 12px; color: var(--text2); }
+.scpop input[type=number] { width: 64px; height: 22px; flex: none; }
+.scpop .btn { height: 22px; padding: 0 9px; }
+.btip { position: fixed; z-index: 50; pointer-events: none; background: #fffff4; color: #222; border: 1px solid #b8b8a0; box-shadow: 0 1px 3px rgba(0,0,0,.15); padding: 2px 7px; font-size: 11.5px; white-space: nowrap; }
+.tn[data-node="doc"] .tl { overflow: hidden; }
+.tn.dragging { opacity: .45; }
+
+/* settings */
+.sform { padding-bottom: 14px; }
+.lrow { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 10px 8px; border-bottom: 1px solid var(--line2); }
+details.sec { border-bottom: 1px solid var(--line2); }
+details.sec > summary { list-style: none; display: flex; align-items: center; gap: 6px; padding: 7px 10px; color: var(--blue); font-size: 13px; cursor: pointer; user-select: none; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid #555; border-bottom: 1.5px solid #555; transform: rotate(-45deg); margin: 0 4px 0 2px; transition: transform .12s; }
+details.sec[open] > summary::before { transform: rotate(45deg); }
+.sbody { padding: 2px 12px 10px 26px; display: flex; flex-direction: column; gap: 7px; }
+.f { display: flex; flex-direction: column; gap: 3px; }
+.f > label, .flab { color: var(--text); }
+.frow { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px; align-items: center; }
+.funit { display: grid; grid-template-columns: minmax(0, 1fr) 42px; gap: 6px; align-items: center; }
+.funit span, .frow output { color: var(--text2); font-variant-numeric: tabular-nums; text-align: right; }
+input[type=number], input[type=text], select { width: 100%; height: 23px; padding: 1px 6px; border: 1px solid #b9b9b9; border-radius: 2px; background: #fff; font-variant-numeric: tabular-nums; }
+select { padding-right: 18px; }
+input:focus, select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+input[type=range] { width: 100%; accent-color: var(--blue); margin: 0; }
+.chk { display: flex; align-items: center; gap: 6px; }
+.chk input { margin: 0; accent-color: var(--blue); }
+.btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { height: 24px; padding: 0 12px; border: 1px solid #adadad; background: linear-gradient(#fdfdfd, #ececec); border-radius: 2px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: #7ea9d6; background: linear-gradient(#fbfdff, #e3eef9); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.go { border-color: #2b7a34; background: linear-gradient(#4aa654, #2e8b3a); color: #fff; }
+.btn.danger { border-color: #a8322b; background: linear-gradient(#d9534f, #c0392b); color: #fff; }
+.btn[aria-pressed="true"] { border-color: #8fbbe6; background: var(--sel); }
+.modal-back { position: fixed; inset: 0; z-index: 60; background: rgba(30,36,44,.28); display: grid; place-items: center; }
+.dlg { width: min(420px, calc(100vw - 32px)); background: var(--panel); border: 1px solid #b9b9b9; border-radius: 6px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 12.5px; color: var(--text); }
+.dlg.wide { width: min(520px, calc(100vw - 32px)); }
+.dlg-h { padding: 12px 16px 6px; font-size: 15px; font-weight: 500; }
+.dlg-b { padding: 4px 16px 10px; display: flex; flex-direction: column; gap: 8px; }
+.dlg-b p { margin: 0; line-height: 1.5; }
+.dlg-b .dlist { margin: 0; padding: 6px 10px 6px 26px; max-height: 140px; overflow: auto; background: var(--bg, #f6f6f6); border: 1px solid var(--line2); border-radius: 4px; line-height: 1.6; }
+.dlg-f { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid var(--line2); }
+.dlg .grid2 { display: grid; grid-template-columns: 120px minmax(0, 1fr) 42px; gap: 6px 8px; align-items: center; }
+.dlg .grid2 span.u { color: var(--text2); }
+.dlg fieldset { border: 1px solid var(--line2); border-radius: 4px; margin: 0; padding: 8px 10px 10px; }
+.dlg legend { color: var(--blue); padding: 0 4px; }
+.note { color: var(--text2); font-size: 11.5px; line-height: 1.45; }
+.ptab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ptab th, .ptab td { padding: 3px 6px; border-bottom: 1px solid var(--line2); text-align: left; white-space: nowrap; }
+.ptab th { font-weight: 400; color: var(--text2); width: 52%; }
+.ptab td.n { text-align: right; }
+.gtbox { border: 1px solid #c9dcef; background: #f2f8fd; padding: 6px 8px; font-size: 11.5px; color: #234; }
+input[type=color] { -webkit-appearance: none; appearance: none; width: 22px; height: 12px; padding: 0; border: 1px solid rgba(0,0,0,.35); border-radius: 0; background: none; cursor: pointer; vertical-align: middle; }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: 0; border-radius: 0; }
+input[type=color]::-moz-color-swatch { border: 0; }
+.lgd .lgh { display: flex; align-items: center; border-bottom: 1px solid #e2e2e2; margin-bottom: 2px; }
+.lgd .lgh .lg0 { border-bottom: 0; margin: 0; flex: 1; }
+.lgd .lgh .xbtn { padding: 0 6px; }
+.lgd { cursor: move; user-select: none; }
+.lgd.dragging { box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+.lgd .sw { width: 22px; height: 10px; background: var(--c); border: 1px solid rgba(0,0,0,.35); flex: none; cursor: pointer; }
+.lgd .sw.ln { height: 0; border: 0; border-top: 3px solid var(--c); }
+.lgd .sw.dot { width: 9px; height: 9px; border-radius: 50%; margin: 0 6px; }
+.lgd .lgi input[type=color] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cmenu { position: fixed; z-index: 70; min-width: 170px; background: #fff; border: 1px solid #bdbdbd; border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 4px 0; font-size: 12.5px; }
+.cmenu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 5px 14px; cursor: pointer; color: var(--text); }
+.cmenu button:hover { background: var(--hov); }
+.cmenu .sep { height: 1px; background: var(--line2); margin: 4px 0; }
+.lgd { position: absolute; z-index: 4; background: rgba(255,255,255,.94); border: 1px solid #999; padding: 3px 0; font-size: 11.5px; overflow: auto; max-width: 70%; }
+.lgd label.lg0 { display: flex; align-items: center; gap: 6px; padding: 2px 8px 4px; border-bottom: 1px solid #e2e2e2; margin-bottom: 2px; color: #333; cursor: pointer; white-space: nowrap; }
+.lgd .lgi { display: flex; align-items: center; gap: 6px; padding: 1px 8px; white-space: nowrap; }
+.lgd .lgi.off span { color: #999; }
+.lgd .lgi span { cursor: default; user-select: none; }
+.lgd input[type=checkbox] { margin: 0; accent-color: var(--blue); }
+.lgd input[type=color].ln { height: 4px; border: 0; }
+.ptab tr.cur td { font-weight: 600; }
+.chip { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.25); }
+.xbtn { border: 0; background: none; color: #888; cursor: pointer; padding: 0 4px; }
+.xbtn:hover { color: #c00; }
+.elist { border: 1px solid var(--line2); max-height: 220px; overflow: auto; }
+.elist div { display: flex; align-items: center; padding: 2px 6px; border-bottom: 1px solid var(--line2); }
+.elist div:last-child { border-bottom: 0; }
+.elist span { flex: 1; }
+
+/* graphics window */
+.wtabs { display: flex; align-items: flex-end; gap: 0; padding: 4px 6px 0; border-bottom: 1px solid var(--line2); background: #fafafa; }
+.wtab { border: 0; background: none; padding: 5px 12px 6px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-size: 12.5px; }
+.wtab:hover { color: var(--blue); }
+.wtab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+/* image tabs (browser-style) */
+.gtabs { padding: 5px 6px 0; gap: 6px; }
+.itabs { display: flex; align-items: flex-end; gap: 1px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.itab { position: relative; display: flex; align-items: center; gap: 6px; height: 28px; min-width: 64px; max-width: 190px; flex: 0 1 190px; padding: 0 6px 0 10px; border: 1px solid transparent; border-bottom: 0; border-radius: 7px 7px 0 0; background: none; color: var(--text2); cursor: pointer; font-size: 12.5px; user-select: none; }
+.itab:hover { background: #eef1f5; }
+.itab .ic { width: 14px; height: 14px; flex: none; }
+.itab .nm2 { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.itab .x { width: 18px; height: 18px; border-radius: 50%; border: 0; background: none; color: #888; display: grid; place-items: center; padding: 0; cursor: pointer; flex: none; visibility: hidden; }
+.itab:hover .x, .itab.on .x { visibility: visible; }
+.itab .x:hover { background: #dde3ea; color: #c00; }
+.itab.on { background: var(--panel); border-color: var(--line2); color: var(--blue); margin-bottom: -1px; height: 29px; z-index: 1; }
+.itab + .itab:not(.on)::before { content: ""; position: absolute; left: -1px; top: 7px; bottom: 7px; width: 1px; background: var(--line); }
+.itab.on + .itab::before { display: none; }
+.itab .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.itab.drop-l { box-shadow: inset 2px 0 0 var(--blue); } .itab.drop-r { box-shadow: inset -2px 0 0 var(--blue); }
+.gtabs .rtab2 { margin-left: auto; }
+.gtool { display: flex; align-items: center; gap: 1px; padding: 3px 6px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
+.gsep { width: 1px; height: 24px; background: var(--line); margin: 0 7px; }
+.gtool { gap: 2px; padding: 4px 8px; }
+.gtool .qbtn { width: 31px; height: 32px; border-radius: 4px; }
+.gtool { flex-wrap: nowrap; overflow: hidden; }
+.gtool .gsep { margin: 0 5px; }
+.gtool svg.i { width: 22px; height: 22px; }
+.gtool .qbtn[aria-pressed="true"] { background: var(--sel); border-color: #8fbbe6; }
+.gbody { position: relative; flex: 1; min-height: 0; }
+.stage { position: absolute; inset: 0; background: linear-gradient(#ffffff, #dfe5ec); overflow: hidden; touch-action: none; }
+.stage canvas, .plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.plot { position: absolute; inset: 0; background: #fff; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--text2); pointer-events: none; }
+.linkbtn { margin-top: 10px; border: 0; background: none; color: var(--blue); cursor: pointer; text-decoration: underline; pointer-events: auto; padding: 0; }
+.tn .tx { visibility: hidden; margin-left: 4px; padding: 0 2px; }
+.tn:hover .tx { visibility: visible; }
+.tn.act > .tl { font-weight: 600; }
+.empty b { display: block; font-size: 15px; font-weight: 400; color: #333; margin-bottom: 4px; }
+.drop { position: absolute; inset: 8px; border: 2px dashed var(--blue); background: rgba(31,99,181,.06); display: grid; place-items: center; color: var(--blue); font-size: 14px; z-index: 6; }
+.tip { position: absolute; z-index: 5; pointer-events: none; background: #fffff4; color: #222; border: 1px solid #b8b8a0; box-shadow: 0 1px 3px rgba(0,0,0,.15); padding: 4px 7px; font-size: 11.5px; line-height: 1.45; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cbar { position: absolute; right: 18px; top: 18px; bottom: 18px; width: 62px; z-index: 3; pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; }
+.cbar .ct { font-size: 11.5px; color: #222; margin-bottom: 6px; white-space: nowrap; }
+.cbar .cb { position: relative; flex: 1; width: 100%; max-height: 420px; }
+.cbar canvas { position: absolute; left: 0; top: 0; width: 16px; height: 100%; border: 1px solid #555; }
+.cbar .tk { position: absolute; left: 21px; font-size: 11px; color: #222; transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.cbar .tk::before { content: ""; position: absolute; left: -5px; top: 50%; width: 4px; border-top: 1px solid #333; }
+.axis { position: absolute; left: 14px; bottom: 14px; z-index: 3; pointer-events: none; font-size: 11px; color: #333; }
+
+/* messages */
+.mbody { flex: 1; overflow: auto; min-height: 0; font-variant-numeric: tabular-nums; }
+.log { padding: 4px 10px; }
+.log div { padding: 1px 0; color: #333; }
+.log .t { color: var(--muted); margin-right: 8px; }
+.log .w { color: #b5551a; }
+.prog { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.pr { display: grid; grid-template-columns: 130px minmax(0, 1fr) 60px; gap: 10px; align-items: center; }
+.pr .bar { height: 10px; border: 1px solid #b9b9b9; background: #f4f4f4; }
+.pr .bar i { display: block; height: 100%; background: linear-gradient(#5aa9e8, #2b78c6); width: 0; }
+.pr span:last-child { text-align: right; color: var(--text2); }
+.dtab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dtab th, .dtab td { padding: 2px 8px; border-right: 1px solid var(--line2); border-bottom: 1px solid var(--line2); text-align: right; white-space: nowrap; }
+.dtab th { position: sticky; top: 0; background: #f3f3f3; font-weight: 400; color: #333; }
+.dtab tr.ex td { color: var(--muted); }
+
+/* status bar */
+.statusbar { display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 12px; background: var(--chrome); border-top: 1px solid var(--line); color: var(--text2); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.statusbar .msg { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.statusbar .busy { color: var(--blue); }
+.statusbar .cxy { color: #1f63b5; font-variant-numeric: tabular-nums; }
+.statusbar b { font-weight: 500; color: #333; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  #app { height: auto; }
+  .work { grid-template-columns: minmax(0, 1fr); padding: 6px 16px; gap: 6px; }
+  .split { display: none; }
+  .tree-pane { max-height: 240px; }
+  .right { grid-template-rows: 62vh 6px 220px; }
+  .appbar .ttl { padding-right: 0; }
+}
+
+/* ===== BeamPath specifics ===== */
+.tn .tsw{ margin-left:auto; display:flex; align-items:center; gap:4px; }
+.tn .pinb{ width:18px; height:18px; display:grid; place-items:center; border:0; background:none; padding:0; cursor:pointer; border-radius:3px; }
+.tn .pinb:hover{ background:#dde3ea; }
+.tn .pinb svg{ width:14px; height:14px; }
+.tn input[type=checkbox]{ margin:0; accent-color:var(--blue); }
+.tn .num{ color:var(--muted); width:16px; text-align:right; font-variant-numeric:tabular-nums; flex:none; }
+.tn.fixed .tl{ color:var(--muted); }
+.funit{ grid-template-columns:minmax(0,1fr) 54px; }
+.funit span{ text-align:left; }
+.dual{ display:grid; grid-template-columns:96px minmax(0,1fr); align-items:center; gap:8px; }
+.dual .lbl{ color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dual .row{ display:flex; align-items:center; gap:4px; min-width:0; }
+.dual input[type=range]{ flex:1; min-width:0; }
+.dual input[type=number]{ width:60px; flex:none; }
+.stepbtn{ width:20px; height:20px; flex:none; border:1px solid #b9b9b9; border-radius:2px; background:linear-gradient(#fdfdfd,#ececec); cursor:pointer; padding:0; line-height:1; font-size:12px; color:var(--text); }
+.stepbtn:hover{ border-color:#7ea9d6; background:linear-gradient(#fbfdff,#e3eef9); }
+.dual.dis{ opacity:.4; }
+.f.dis{ opacity:.4; }
+.sbody .btn.block{ width:100%; justify-content:center; }
+.sbody hr{ border:0; border-top:1px solid var(--line2); margin:2px 0; width:100%; }
+/* graphics views */
+.view{ position:absolute; inset:0; }
+#scene{ position:absolute; inset:0; width:100%; height:100%; display:block; background:#fff; }
+.pwrap{ position:absolute; inset:0; display:grid; place-items:center; background:#fff; padding:10px; }
+#profileCanvas{ display:block; }
+.gtool .rfield{ margin-left:2px; }
+.gtool .rfield select{ width:96px; }
+.gtool .glab{ color:var(--text2); font-variant-numeric:tabular-nums; min-width:62px; }
+/* results window */
+.rgrid{ position:absolute; inset:0; overflow:auto; padding:12px 14px 18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px 18px; align-content:start; background:#fff; }
+.rcard h3{ margin:0 0 4px; font-size:13px; font-weight:400; color:var(--blue); }
+.rcard .ptab td.k{ color:var(--text2); width:55%; cursor:help; white-space:normal; }
+.rcard .ptab td.v{ text-align:right; color:var(--text); white-space:nowrap; }
+.rcard .ptab tr.final td{ font-weight:600; color:var(--text); }
+.rcard.hl{ animation:hl 1.2s ease-out; }
+@keyframes hl{ 0%{ background:#e8f1fa; } 100%{ background:transparent; } }
+.target-status{ margin-top:4px; color:var(--text2); font-size:11.5px; }
+.target-status.bad{ color:#c0392b; }
+.target-status.ok{ color:var(--green); }
+.tsub{ color:var(--text2); margin:8px 0 2px; }
+/* measurement log */
+.log-entry{ display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--line2); }
+.log-entry img{ width:52px; height:52px; object-fit:cover; border:1px solid var(--line2); flex:none; }
+.log-entry .meta{ flex:1; min-width:0; color:var(--text2); font-size:11.5px; line-height:1.45; }
+.log-entry .meta .dt{ color:var(--text); font-size:12px; }
+.log-entry .del{ align-self:flex-start; }
+input[type=file]{ font-size:11.5px; width:100%; }
+.statusbar .kv{ font-variant-numeric:tabular-nums; }
+:root{ --outline:#2b3440; --panel-border:#e3e3e3; --muted2:#8c8c8c; }
+.lcap{ position:absolute; left:12px; bottom:10px; z-index:2; pointer-events:none; color:var(--text2); font-size:11.5px; background:rgba(255,255,255,.85); padding:2px 6px; border:1px solid var(--line2); }
+
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="g-logo" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="6" fill="#1d2a3a"/><path d="M6 9l7-3 7 4 6-2v8l-5 4 4 6-8 2-7-3-4-6z" fill="none" stroke="#ffb000" stroke-width="1.6" stroke-linejoin="round"/><path d="M13 6l1 9 6-5M14 15l-8 3M14 15l3 6 4-1M17 21l-2 6" fill="none" stroke="#ffb000" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="g-open" viewBox="0 0 32 32"><path d="M3 8h9l3 3h12v15H3z" fill="#f0c25c" stroke="#a87c1d"/><path d="M3 26l4-11h23l-4 11z" fill="#f7d67e" stroke="#a87c1d"/></symbol>
+<symbol id="g-sample" viewBox="0 0 32 32"><path d="M4 6h24v20H4z" fill="#d9dee5" stroke="#6c7a89"/><path d="M4 14l7-3 6 4 5-5 6 2M11 11l-2-5M17 15l1 11M17 15l-8 6-5-1M22 10l6 9-10 2" fill="none" stroke="#3f4b58" stroke-width="1.3"/><circle cx="25" cy="23" r="5" fill="#2e8b3a"/><path d="M22.6 23h4.8M25 20.6v4.8" stroke="#fff" stroke-width="1.6"/></symbol>
+<symbol id="g-ruler" viewBox="0 0 32 32"><rect x="3" y="11" width="26" height="10" fill="#f3d27a" stroke="#9c7a1c"/><path d="M7 11v4M11 11v6M15 11v4M19 11v6M23 11v4M27 11v6" stroke="#6b520e"/></symbol>
+<symbol id="g-scaleline" viewBox="0 0 32 32"><path d="M5 16h22" stroke="#c0398f" stroke-width="2.2"/><path d="M5 11v10M27 11v10" stroke="#c0398f" stroke-width="2.2"/><path d="M9 25h14" stroke="#777" stroke-dasharray="2 2"/></symbol>
+<symbol id="g-process" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" rx="4" fill="#2e8b3a"/><path d="M9 12.5h14M9 19.5h14" stroke="#fff" stroke-width="3" stroke-linecap="round"/></symbol>
+<symbol id="g-auto" viewBox="0 0 32 32"><path d="M6 26L20 12" stroke="#555" stroke-width="2.6" stroke-linecap="round"/><path d="M20 12l3-3" stroke="#1f63b5" stroke-width="2.6" stroke-linecap="round"/><path d="M24 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1zM12 5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7zM27 15l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" fill="#e3a21a"/></symbol>
+<symbol id="g-pan" viewBox="0 0 32 32"><path d="M16 3v26M3 16h26" stroke="#3b5f8a" stroke-width="2"/><path d="M16 3l-4 4h8zM16 29l-4-4h8zM3 16l4-4v8zM29 16l-4-4v8z" fill="#3b5f8a"/></symbol>
+<symbol id="g-roi" viewBox="0 0 32 32"><rect x="6" y="7" width="20" height="18" fill="#e6f1fb" stroke="#1f63b5" stroke-width="1.6" stroke-dasharray="3 2"/><path d="M4 5h4v4H4zM24 5h4v4h-4zM4 23h4v4H4zM24 23h4v4h-4z" fill="#fff" stroke="#1f63b5"/></symbol>
+<symbol id="g-draw" viewBox="0 0 32 32"><path d="M6 21l14-14 5 5-14 14H6z" fill="#f2a44b" stroke="#8a5413"/><path d="M20 7l5 5" stroke="#8a5413"/><path d="M6 21l5 5" stroke="#8a5413"/><path d="M4 29h24" stroke="#ffb000" stroke-width="2"/></symbol>
+<symbol id="g-erase" viewBox="0 0 32 32"><path d="M5 20l11-11 9 9-7 7h-7z" fill="#f4b6c6" stroke="#9a4a5e"/><path d="M11 14l9 9" stroke="#9a4a5e"/><path d="M14 28h14" stroke="#9a4a5e"/></symbol>
+<symbol id="g-seed" viewBox="0 0 32 32"><path d="M4 8l9-3 9 5 6 9-8 8-11-1-5-9z" fill="#e8eef5" stroke="#5a6d82"/><circle cx="15" cy="16" r="3.4" fill="#c0398f"/><path d="M24 4v8M20 8h8" stroke="#2e8b3a" stroke-width="2"/></symbol>
+<symbol id="g-merge" viewBox="0 0 32 32"><circle cx="12" cy="16" r="8" fill="#cfe3f6" stroke="#1f63b5"/><circle cx="20" cy="16" r="8" fill="#cfe3f6" stroke="#1f63b5" fill-opacity=".8"/><path d="M16 9.1v13.8" stroke="#1f63b5" stroke-dasharray="2 2"/></symbol>
+<symbol id="g-layout" viewBox="0 0 32 32"><rect x="3" y="5" width="26" height="22" rx="1.5" fill="#f4f6f9" stroke="#6c7a89"/><rect x="5" y="9" width="6" height="16" fill="#b9d3ee" stroke="#3b5f8a" stroke-width=".9"/><rect x="13" y="9" width="14" height="10" fill="#fff" stroke="#3b5f8a" stroke-width=".9"/><rect x="13" y="21" width="14" height="4" fill="#f3d27a" stroke="#9c7a1c" stroke-width=".9"/><path d="M3 7.5h26" stroke="#6c7a89"/><circle cx="25" cy="24" r="5.4" fill="#2e8b3a"/><path d="M22.4 24a2.6 2.6 0 104-2.2" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M25.2 20.2l1.9 1.7-2.3 1.1z" fill="#fff"/></symbol>
+<symbol id="g-pset" viewBox="0 0 32 32"><rect x="3" y="5" width="26" height="22" rx="1.5" fill="#f4f6f9" stroke="#6c7a89"/><path d="M3 7.5h26" stroke="#6c7a89"/><rect x="5" y="9" width="9" height="16" fill="#b9d3ee" stroke="#3b5f8a" stroke-width=".9"/><path d="M7 13h5M7 16.5h5M7 20h5" stroke="#3b5f8a" stroke-width="1.3"/><rect x="16" y="9" width="11" height="16" fill="#fff" stroke="#b8c1cc" stroke-width=".9"/></symbol>
+<symbol id="g-pmsg" viewBox="0 0 32 32"><rect x="3" y="5" width="26" height="22" rx="1.5" fill="#f4f6f9" stroke="#6c7a89"/><path d="M3 7.5h26" stroke="#6c7a89"/><rect x="5" y="9" width="22" height="8" fill="#fff" stroke="#b8c1cc" stroke-width=".9"/><rect x="5" y="19" width="22" height="6" fill="#f3d27a" stroke="#9c7a1c" stroke-width=".9"/><path d="M8 21.3h10M8 23.3h14" stroke="#6b520e" stroke-width="1"/></symbol>
+<symbol id="g-redo" viewBox="0 0 32 32"><path d="M23 12H11a6 6 0 000 12h6" fill="none" stroke="#3b5f8a" stroke-width="2.4"/><path d="M28 12l-7-6v12z" fill="#3b5f8a"/></symbol>
+<symbol id="g-undo" viewBox="0 0 32 32"><path d="M9 12h12a6 6 0 010 12h-6" fill="none" stroke="#3b5f8a" stroke-width="2.4"/><path d="M4 12l7-6v12z" fill="#3b5f8a"/></symbol>
+<symbol id="g-image" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" fill="#d6dbe1" stroke="#6c7a89"/><path d="M5 24l7-9 5 6 4-4 6 7z" fill="#7c8a99"/><circle cx="22" cy="12" r="2.5" fill="#fff"/></symbol>
+<symbol id="g-gb" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" fill="#6d7680"/><path d="M3 14l8-2 6 4 6-6 6 2M11 12l-2-6M17 16l1 10M17 16l-9 6-5-1M23 10l3 8-8 1" fill="none" stroke="#ffb000" stroke-width="1.6"/></symbol>
+<symbol id="g-grain" viewBox="0 0 32 32"><path d="M3 6h10l-1 8-9 2z" fill="#e57373"/><path d="M13 6h9l-3 9-7-1z" fill="#64b5f6"/><path d="M22 6h7v9l-10 0z" fill="#81c784"/><path d="M3 16l9-2 7 1-2 11H3z" fill="#ffd54f"/><path d="M19 15h10v11H17z" fill="#ba68c8"/><rect x="3" y="6" width="26" height="20" fill="none" stroke="#555"/></symbol>
+<symbol id="g-size" viewBox="0 0 32 32"><path d="M3 6h10l-1 8-9 2z" fill="#30123b"/><path d="M13 6h9l-3 9-7-1z" fill="#2fa1f0"/><path d="M22 6h7v9l-10 0z" fill="#5dfc6f"/><path d="M3 16l9-2 7 1-2 11H3z" fill="#f9b52c"/><path d="M19 15h10v11H17z" fill="#bf2d06"/><rect x="3" y="6" width="26" height="20" fill="none" stroke="#555"/></symbol>
+<symbol id="g-signal" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" fill="#1b1b1b"/><path d="M3 14l8-2 6 4 6-6 6 2M11 12l-2-6M17 16l1 10M17 16l-9 6-5-1" fill="none" stroke="#e8e8e8" stroke-width="1.2"/></symbol>
+<symbol id="g-csv" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6z" fill="#fff" stroke="#5f6b77"/><path d="M20 3v6h6" fill="none" stroke="#5f6b77"/><rect x="9" y="13" width="14" height="12" fill="#e3f1e3" stroke="#2e8b3a"/><path d="M9 17h14M9 21h14M14 13v12M18.5 13v12" stroke="#2e8b3a"/></symbol>
+<symbol id="g-png" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6z" fill="#fff" stroke="#5f6b77"/><path d="M20 3v6h6" fill="none" stroke="#5f6b77"/><path d="M9 25l5-6 3 3 3-4 3 7z" fill="#2fa1f0"/><circle cx="13" cy="14" r="2" fill="#f9b52c"/></symbol>
+<symbol id="g-hist" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="7" y="18" width="4" height="9" fill="#2a78d6"/><rect x="12" y="10" width="4" height="17" fill="#2a78d6"/><rect x="17" y="6" width="4" height="21" fill="#2a78d6"/><rect x="22" y="15" width="4" height="12" fill="#2a78d6"/></symbol>
+<symbol id="g-compare" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="7" y="16" width="3" height="11" fill="#2a78d6"/><rect x="10" y="12" width="3" height="15" fill="#e0601f"/><rect x="16" y="8" width="3" height="19" fill="#2a78d6"/><rect x="19" y="13" width="3" height="14" fill="#e0601f"/><rect x="24" y="19" width="3" height="8" fill="#2a78d6"/></symbol>
+<symbol id="g-cdf" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M5 26h4v-3h3v-6h3v-6h3v-3h4v-2h5" fill="none" stroke="#2a78d6" stroke-width="2"/><path d="M5 26h6v-2h3v-4h4v-5h3v-4h3v-3h4" fill="none" stroke="#e0601f" stroke-width="2"/></symbol>
+<symbol id="g-expand" viewBox="0 0 32 32"><rect x="4" y="4" width="11" height="11" fill="#fff" stroke="#6c7a89" stroke-width="1.4"/><path d="M6.5 9.5h6M9.5 6.5v6" stroke="#3b5f8a" stroke-width="1.8"/><path d="M9.5 15v12M9.5 20h6M9.5 27h6" fill="none" stroke="#9aa5b1" stroke-width="1.4"/><rect x="17" y="17" width="11" height="6" fill="#b9d3ee" stroke="#3b5f8a" stroke-width="1.2"/><rect x="17" y="24" width="11" height="6" fill="#b9d3ee" stroke="#3b5f8a" stroke-width="1.2"/></symbol>
+<symbol id="g-collapse" viewBox="0 0 32 32"><rect x="4" y="4" width="11" height="11" fill="#fff" stroke="#6c7a89" stroke-width="1.4"/><path d="M6.5 9.5h6" stroke="#3b5f8a" stroke-width="1.8"/><rect x="4" y="18" width="11" height="11" fill="#fff" stroke="#6c7a89" stroke-width="1.4"/><path d="M6.5 23.5h6" stroke="#3b5f8a" stroke-width="1.8"/><path d="M18 9.5h10M18 23.5h10" stroke="#9aa5b1" stroke-width="1.6"/></symbol>
+<symbol id="g-axis" viewBox="0 0 32 32"><path d="M7 4v21h21" fill="none" stroke="#444" stroke-width="1.8"/><path d="M4 9h3M4 15h3M4 21h3M12 25v3M18 25v3M24 25v3" stroke="#444" stroke-width="1.6"/><path d="M10 7l4-3 4 3M25 18l3 4-3 4" fill="none" stroke="#1f63b5" stroke-width="1.8"/><path d="M14 4v14h14" fill="none" stroke="#1f63b5" stroke-width="1.6" stroke-dasharray="2 2"/></symbol>
+<symbol id="g-reset" viewBox="0 0 32 32"><path d="M4 6h20v17H4z" fill="#d9dee5" stroke="#6c7a89"/><path d="M4 14l6-3 5 4 4-5 5 2M10 11l-1-5M15 15l1 8" fill="none" stroke="#3f4b58" stroke-width="1.2"/><circle cx="24" cy="23" r="6" fill="#d9822b"/><path d="M21.2 23a2.8 2.8 0 104.3-2.4" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M25.5 18.6l1.9 1.9-2.6 1z" fill="#fff"/></symbol>
+<symbol id="g-scauto" viewBox="0 0 32 32"><rect x="3" y="15" width="22" height="9" fill="#f3d27a" stroke="#9c7a1c"/><path d="M7 15v3M11 15v4M15 15v3M19 15v4M23 15v3" stroke="#6b520e"/><path d="M25 3l1.4 3.6L30 8l-3.6 1.4L25 13l-1.4-3.6L20 8l3.6-1.4z" fill="#1f63b5"/><path d="M17 5l.8 1.7 1.7.8-1.7.8L17 10l-.8-1.7L14.5 7.5l1.7-.8z" fill="#5aa9e8"/></symbol>
+<symbol id="g-scregion" viewBox="0 0 32 32"><rect x="3" y="7" width="26" height="18" fill="#fff" stroke="#c0398f" stroke-width="1.6" stroke-dasharray="3 2"/><path d="M8 16h16" stroke="#3f4b58" stroke-width="2.4"/><path d="M8 12.5v7M24 12.5v7" stroke="#3f4b58" stroke-width="1.6"/></symbol>
+<symbol id="g-scdraw" viewBox="0 0 32 32"><path d="M4 22h18" stroke="#c0398f" stroke-width="2.2"/><path d="M4 18v8M22 18v8" stroke="#c0398f" stroke-width="2"/><path d="M19 13l8-8 3 3-8 8-4 1z" fill="#f0c25c" stroke="#a87c1d" stroke-width="1.2"/><path d="M27 5l3 3" stroke="#a87c1d" stroke-width="1.2"/></symbol>
+<symbol id="g-scapply" viewBox="0 0 32 32"><rect x="2" y="16" width="20" height="8" fill="#f3d27a" stroke="#9c7a1c"/><path d="M6 16v3M10 16v4M14 16v3M18 16v4" stroke="#6b520e"/><circle cx="23" cy="11" r="8" fill="#2e8b3a"/><path d="M19 11l3 3 5-6" fill="none" stroke="#fff" stroke-width="2.2"/></symbol>
+<symbol id="g-scshow" viewBox="0 0 32 32"><rect x="3" y="20" width="22" height="8" fill="#f3d27a" stroke="#9c7a1c"/><path d="M7 20v3M11 20v4M15 20v3M19 20v4" stroke="#6b520e"/><path d="M4 11c4-6 16-6 20 0-4 6-16 6-20 0z" fill="#fff" stroke="#ff1f9f" stroke-width="1.6"/><circle cx="14" cy="11" r="3" fill="#ff1f9f"/></symbol>
+<symbol id="g-axes" viewBox="0 0 32 32"><rect x="10" y="6" width="17" height="15" fill="#d9dee5" stroke="#6c7a89"/><path d="M7 4v21h21" fill="none" stroke="#1f63b5" stroke-width="2"/><path d="M12 25v3M17 25v3M22 25v3M4 20h3M4 15h3M4 10h3" stroke="#1f63b5" stroke-width="1.6"/></symbol>
+<symbol id="g-shape" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><g fill="#2a78d6"><circle cx="9" cy="22" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="15" cy="21" r="1.8"/><circle cx="17" cy="15" r="1.8"/><circle cx="21" cy="17" r="1.8"/><circle cx="24" cy="11" r="1.8"/></g><g fill="#e0601f"><circle cx="11" cy="12" r="1.8"/><circle cx="14" cy="9" r="1.8"/><circle cx="19" cy="7" r="1.8"/></g><ellipse cx="26" cy="22" rx="4" ry="2" fill="none" stroke="#6c7a89" stroke-width="1.2"/></symbol>
+<symbol id="g-autoscale" viewBox="0 0 32 32"><rect x="4" y="6" width="24" height="20" fill="#fff" stroke="#6c7a89"/><path d="M7 22l5-6 4 3 5-8 4 4" fill="none" stroke="#2a78d6" stroke-width="2"/><path d="M2 3h6M2 3v6M30 3h-6M30 3v6M2 29h6M2 29v-6M30 29h-6M30 29v-6" fill="none" stroke="#1f63b5" stroke-width="1.8"/><text x="21" y="14" font-size="8" font-family="Arial" font-weight="700" fill="#1f63b5">A</text></symbol>
+<symbol id="g-legend" viewBox="0 0 32 32"><rect x="4" y="5" width="24" height="22" rx="1.5" fill="#fff" stroke="#6c7a89"/><rect x="8" y="10" width="7" height="4" fill="#2a78d6"/><rect x="8" y="18" width="7" height="4" fill="#e0601f"/><path d="M18 12h7M18 20h7" stroke="#555" stroke-width="1.6"/></symbol>
+<symbol id="g-style" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="8" y="15" width="4" height="12" fill="#9fb7d4"/><rect x="14" y="10" width="4" height="17" fill="#9fb7d4"/><circle cx="24" cy="11" r="6" fill="#d9822b"/><path d="M21.4 11a2.6 2.6 0 104-2.2" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M25.2 7.2l1.9 1.7-2.3 1.1z" fill="#fff"/></symbol>
+<symbol id="g-gear" viewBox="0 0 32 32"><path d="M14 3h4l.8 3.4 2.7 1.1 3-1.8 2.8 2.8-1.8 3 1.1 2.7L30 14v4l-3.4.8-1.1 2.7 1.8 3-2.8 2.8-3-1.8-2.7 1.1L18 30h-4l-.8-3.4-2.7-1.1-3 1.8-2.8-2.8 1.8-3-1.1-2.7L2 18v-4l3.4-.8 1.1-2.7-1.8-3 2.8-2.8 3 1.8 2.7-1.1z" fill="#d9dee5" stroke="#6c7a89" stroke-width="1.2"/><circle cx="16" cy="16" r="4.5" fill="#fff" stroke="#6c7a89" stroke-width="1.2"/></symbol>
+<symbol id="g-add" viewBox="0 0 32 32"><path d="M4 27h17M4 6v21" stroke="#444"/><rect x="7" y="16" width="4" height="11" fill="#2a78d6"/><rect x="13" y="10" width="4" height="17" fill="#e0601f"/><circle cx="24" cy="10" r="6" fill="#2e8b3a"/><path d="M21 10h6M24 7v6" stroke="#fff" stroke-width="2"/></symbol>
+<symbol id="g-closeall" viewBox="0 0 32 32"><path d="M8 4h20v15H8z" fill="#e6e9ed" stroke="#4f6a8a" stroke-width="1.4"/><path d="M4 9h20v15H4z" fill="#d6dbe1" stroke="#4f6a8a" stroke-width="1.4"/><circle cx="23" cy="23" r="6.5" fill="#c83c3b"/><path d="M20.5 20.5l5 5M25.5 20.5l-5 5" stroke="#fff" stroke-width="2"/></symbol>
+<symbol id="g-close" viewBox="0 0 32 32"><path d="M4 7h24v18H4z" fill="#d6dbe1" stroke="#4f6a8a" stroke-width="1.4"/><circle cx="23" cy="22" r="6.5" fill="#c83c3b"/><path d="M20.5 19.5l5 5M25.5 19.5l-5 5" stroke="#fff" stroke-width="2"/></symbol>
+<symbol id="g-processall" viewBox="0 0 32 32"><rect x="8" y="2" width="21" height="21" rx="3" fill="#8cc596"/><rect x="5.5" y="5.5" width="21" height="21" rx="3" fill="#5daa67"/><rect x="3" y="9" width="21" height="21" rx="3.5" fill="#2e8b3a"/><path d="M7.5 17h12M7.5 22.5h12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></symbol>
+<symbol id="g-zin" viewBox="0 0 32 32"><circle cx="13" cy="13" r="8" fill="#e8f1fa" stroke="#1f63b5" stroke-width="2"/><path d="M19 19l8 8" stroke="#1f63b5" stroke-width="3" stroke-linecap="round"/><path d="M9 13h8M13 9v8" stroke="#1f63b5" stroke-width="2"/></symbol>
+<symbol id="g-zout" viewBox="0 0 32 32"><circle cx="13" cy="13" r="8" fill="#e8f1fa" stroke="#1f63b5" stroke-width="2"/><path d="M19 19l8 8" stroke="#1f63b5" stroke-width="3" stroke-linecap="round"/><path d="M9 13h8" stroke="#1f63b5" stroke-width="2"/></symbol>
+<symbol id="g-fit" viewBox="0 0 32 32"><rect x="9" y="10" width="14" height="12" fill="#cfe3f6" stroke="#1f63b5"/><path d="M4 9V4h5M23 4h5v5M28 23v5h-5M9 28H4v-5" fill="none" stroke="#1f63b5" stroke-width="2"/></symbol>
+<symbol id="g-file" viewBox="0 0 32 32"><path d="M4 7h24v18H4z" fill="#d6dbe1" stroke="#4f6a8a" stroke-width="1.6"/><path d="M4 18l8-7 6 6 4-3 6 6" fill="none" stroke="#4f6a8a" stroke-width="1.6"/></symbol>
+<symbol id="g-detect" viewBox="0 0 32 32"><path d="M4 6h24l-9 11v9l-6-3v-6z" fill="#cfe3f6" stroke="#1f63b5" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="g-edit" viewBox="0 0 32 32"><path d="M6 22l14-14 5 5-14 14H6z" fill="#f2a44b" stroke="#8a5413" stroke-width="1.4"/></symbol>
+<symbol id="g-results" viewBox="0 0 32 32"><path d="M3 8h10l3 3h13v15H3z" fill="#b986c9" stroke="#6d3f7c" stroke-width="1.4"/></symbol>
+<symbol id="g-table" viewBox="0 0 32 32"><rect x="4" y="6" width="24" height="20" fill="#fff" stroke="#555" stroke-width="1.6"/><path d="M4 12h24M4 18h24M13 6v20" stroke="#555" stroke-width="1.4"/></symbol>
+<symbol id="g-export" viewBox="0 0 32 32"><path d="M5 10v17h22V10" fill="none" stroke="#555" stroke-width="1.8"/><path d="M16 4v15M10 10l6-6 6 6" fill="none" stroke="#1f63b5" stroke-width="2.2"/></symbol>
+<symbol id="g-import" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6z" fill="#fff" stroke="#5f6b77"/><path d="M20 3v6h6" fill="none" stroke="#5f6b77"/><path d="M11 17l-3 3 3 3M21 17l3 3-3 3" fill="none" stroke="#7a55c2" stroke-width="1.6"/><circle cx="23" cy="9.5" r="0" fill="none"/><path d="M16 7v9M12.5 12.5L16 16l3.5-3.5" fill="none" stroke="#1f63b5" stroke-width="2"/></symbol>
+<symbol id="g-array" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" rx="1.5" fill="#f4f6f9" stroke="#6c7a89"/><g fill="#7fb0e6" stroke="#1f63b5" stroke-width=".9"><rect x="6" y="6" width="5.5" height="5.5"/><rect x="13.25" y="6" width="5.5" height="5.5"/><rect x="20.5" y="6" width="5.5" height="5.5"/><rect x="6" y="13.25" width="5.5" height="5.5"/><rect x="13.25" y="13.25" width="5.5" height="5.5"/><rect x="20.5" y="13.25" width="5.5" height="5.5"/><rect x="6" y="20.5" width="5.5" height="5.5"/><rect x="13.25" y="20.5" width="5.5" height="5.5"/><rect x="20.5" y="20.5" width="5.5" height="5.5"/></g></symbol>
+<symbol id="g-pathview" viewBox="0 0 32 32"><path d="M4 6h18v6H6v6h16v6H4" fill="none" stroke="#1f63b5" stroke-width="2" stroke-linejoin="round"/><circle cx="4" cy="6" r="2" fill="#1f63b5"/><circle cx="24" cy="24" r="6.5" fill="#2e8b3a"/><path d="M22 20.8v6.4l5.2-3.2z" fill="#fff"/></symbol>
+<symbol id="g-pathpause" viewBox="0 0 32 32"><path d="M4 6h18v6H6v6h16v6H4" fill="none" stroke="#1f63b5" stroke-width="2" stroke-linejoin="round"/><circle cx="4" cy="6" r="2" fill="#1f63b5"/><circle cx="24" cy="24" r="6.5" fill="#d9822b"/><path d="M22 21v6M26 21v6" stroke="#fff" stroke-width="2"/></symbol>
+<symbol id="g-clearpath" viewBox="0 0 32 32"><path d="M4 6h18v6H6v6h16v6H4" fill="none" stroke="#9aa6b2" stroke-width="2" stroke-linejoin="round" stroke-dasharray="3 2"/><circle cx="23" cy="23" r="6.5" fill="#c83c3b"/><path d="M20.5 20.5l5 5M25.5 20.5l-5 5" stroke="#fff" stroke-width="2"/></symbol>
+<symbol id="g-newcanvas" viewBox="0 0 32 32"><path d="M4 5h22v20H4z" fill="#fff" stroke="#6c7a89"/><path d="M4 8h22" stroke="#6c7a89"/><path d="M8 20l4-5 3 3 3-4" fill="none" stroke="#b8c1cc" stroke-width="1.4"/><circle cx="24" cy="23" r="6" fill="#2e8b3a"/><path d="M21.2 23h5.6M24 20.2v5.6" stroke="#fff" stroke-width="1.8"/></symbol>
+<symbol id="g-imgimport" viewBox="0 0 32 32"><rect x="3" y="6" width="22" height="18" fill="#d9dee5" stroke="#6c7a89"/><path d="M3 24l7-8 5 5 4-4 6 7z" fill="#8a97a6"/><circle cx="18" cy="11" r="2.2" fill="#fff"/><circle cx="24" cy="23" r="6.5" fill="#1f63b5"/><path d="M24 19.3v6.4M21.3 23l2.7 2.9 2.7-2.9" fill="none" stroke="#fff" stroke-width="1.7"/></symbol>
+<symbol id="g-optim" viewBox="0 0 32 32"><path d="M6 25c0-6 6-6 10-9s4-9 10-9" fill="none" stroke="#1f63b5" stroke-width="2.2" stroke-linecap="round"/><circle cx="6" cy="25" r="3" fill="#2e8b3a"/><circle cx="26" cy="7" r="3" fill="#c83c3b"/><path d="M6 8l1 2.5L9.5 11.5 7 12.5 6 15 5 12.5 2.5 11.5 5 10.5z" fill="#f2a900"/><path d="M24 18l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" fill="#f2a900"/></symbol>
+<symbol id="g-select" viewBox="0 0 32 32"><path d="M8 4l16 11-7 1.6 4 8-3.2 1.6-4-8L8 23z" fill="#fff" stroke="#2b3a4b" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="g-lasso" viewBox="0 0 32 32"><ellipse cx="16" cy="13" rx="12" ry="8" fill="#e8f1fa" stroke="#1f63b5" stroke-width="1.6" stroke-dasharray="3 2"/><path d="M11 20c-1 3 1 5 3 5s2 3 0 4" fill="none" stroke="#1f63b5" stroke-width="1.6"/></symbol>
+<symbol id="g-boxsel" viewBox="0 0 32 32"><rect x="4" y="6" width="24" height="20" fill="#e8f1fa" stroke="#1f63b5" stroke-width="1.6" stroke-dasharray="3 2"/></symbol>
+<symbol id="g-group" viewBox="0 0 32 32"><rect x="3" y="3" width="12" height="12" rx="1.5" fill="#b9d3ee" stroke="#1f63b5"/><rect x="17" y="17" width="12" height="12" rx="1.5" fill="#f3d27a" stroke="#9c7a1c"/><path d="M15 9h5a3 3 0 013 3v5" fill="none" stroke="#6c7a89" stroke-width="1.4" stroke-dasharray="2.5 2"/></symbol>
+<symbol id="g-sliders" viewBox="0 0 32 32"><path d="M4 9h24M4 16h24M4 23h24" stroke="#8a97a6" stroke-width="2" stroke-linecap="round"/><rect x="17" y="5.5" width="5" height="7" rx="1.2" fill="#2a78d6" stroke="#1d4f8f"/><rect x="8" y="12.5" width="5" height="7" rx="1.2" fill="#e0601f" stroke="#9b3f12"/><rect x="20" y="19.5" width="5" height="7" rx="1.2" fill="#2e8b3a" stroke="#1d5e26"/></symbol>
+<symbol id="g-rename" viewBox="0 0 32 32"><rect x="3" y="9" width="26" height="14" rx="1.5" fill="#fff" stroke="#6c7a89"/><path d="M7 19l3-7 3 7M8 17h4" fill="none" stroke="#3b5f8a" stroke-width="1.5"/><path d="M19 6h4M19 26h4M21 6v20" stroke="#1f63b5" stroke-width="1.8"/></symbol>
+<symbol id="g-trash" viewBox="0 0 32 32"><path d="M8 9h16l-1.5 19h-13z" fill="#d9dee5" stroke="#6c7a89"/><path d="M5 9h22" stroke="#6c7a89" stroke-width="2"/><path d="M12 9V5h8v4" fill="none" stroke="#6c7a89" stroke-width="1.6"/><path d="M13 13v11M16 13v11M19 13v11" stroke="#8a97a6" stroke-width="1.4"/></symbol>
+<symbol id="g-folder" viewBox="0 0 32 32"><path d="M3 8h9l3 3h14v16H3z" fill="#f0c25c" stroke="#a87c1d"/><path d="M3 13h26" stroke="#a87c1d" stroke-width=".8"/></symbol>
+<symbol id="g-shapes" viewBox="0 0 32 32"><rect x="3" y="12" width="14" height="14" fill="#b9d3ee" stroke="#1f63b5"/><circle cx="20" cy="12" r="8" fill="#f3d27a" fill-opacity=".9" stroke="#9c7a1c"/></symbol>
+<symbol id="g-substrate" viewBox="0 0 32 32"><rect x="5" y="5" width="22" height="22" fill="#cfe3f6" stroke="#1f63b5" stroke-width="1.4" stroke-dasharray="3 2"/><path d="M16 11v10M11 16h10" stroke="#1f63b5" stroke-width="2"/></symbol>
+<symbol id="g-pen" viewBox="0 0 32 32"><path d="M6 26l1.5-6L22 5.5l4.5 4.5L12 24.5z" fill="#f2b55f" stroke="#8a5a17" stroke-width="1.2"/><path d="M6 26l1.5-6 4.5 4.5z" fill="#3b3b3b"/><path d="M19 8.5l4.5 4.5" stroke="#8a5a17" stroke-width="1.2"/></symbol>
+<symbol id="g-pointerase" viewBox="0 0 32 32"><path d="M5 20l10-10 9 9-6 6H10z" fill="#f2a7b8" stroke="#a03c55" stroke-width="1.2"/><path d="M10 15l9 9" stroke="#a03c55" stroke-width="1.2"/><circle cx="25" cy="7" r="3.2" fill="#1f63b5"/></symbol>
+<symbol id="g-layererase" viewBox="0 0 32 32"><path d="M5 20l10-10 9 9-6 6H10z" fill="#f2a7b8" stroke="#a03c55" stroke-width="1.2"/><path d="M10 15l9 9" stroke="#a03c55" stroke-width="1.2"/><path d="M20 5l6 3-6 3-6-3z" fill="#1f63b5"/><path d="M14 10.5l6 3 6-3" fill="none" stroke="#1f63b5" stroke-width="1.2"/></symbol>
+<symbol id="g-demo" viewBox="0 0 32 32"><path d="M4 5h22v20H4z" fill="#fff" stroke="#6c7a89"/><path d="M6 21h3l2-4 2 2 2-12 2 12 2-6 2 8h3" fill="none" stroke="#2a78d6" stroke-width="1.5" stroke-linejoin="round"/><circle cx="25" cy="24" r="5.5" fill="#2e8b3a"/><path d="M22.4 24h5.2M25 21.4v5.2" stroke="#fff" stroke-width="1.7"/></symbol>
+<symbol id="g-spectrum" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M5 25h4l2-4 2 2 3-17 3 15 2-5 3 9h5" fill="none" stroke="#2a78d6" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="g-bands" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M9 26c2 0 2-9 3.5-9S14 26 16 26z" fill="#8a97a6" fill-opacity=".55"/><path d="M17 26c2 0 2.5-20 4-20s2 20 4 20z" fill="#2e8b3a" fill-opacity=".55"/><path d="M5 25.5h4c2 0 2-9 3.5-9S14 25.5 16 25.5h1c2 0 2.5-20 4-20s2 20 4 20h3" fill="none" stroke="#2a78d6" stroke-width="1.5"/></symbol>
+<symbol id="g-despike" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M5 20h5l2-3 3 2 3-3 3 3 3-2h5" fill="none" stroke="#2a78d6" stroke-width="1.6" stroke-linejoin="round"/><path d="M15 19V5" stroke="#c83c3b" stroke-width="2"/><path d="M11 9l8 6M19 9l-8 6" stroke="#c83c3b" stroke-width="1.6"/></symbol>
+<symbol id="g-xc" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="#9aa6b2" stroke="#55606c"/><path d="M16 16V4a12 12 0 11-11.4 15.7z" fill="#2e8b3a" stroke="#1d5e26"/><circle cx="16" cy="16" r="4.5" fill="#fff"/></symbol>
+<symbol id="g-clearproc" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="7" y="17" width="4" height="10" fill="#9aa6b2"/><rect x="12" y="11" width="4" height="16" fill="#9aa6b2"/><rect x="17" y="14" width="4" height="13" fill="#9aa6b2"/><circle cx="24" cy="10" r="6.5" fill="#c83c3b"/><path d="M21.3 10a2.7 2.7 0 104.3-2.2" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M25.5 5.6l1.6 2.6-2.9.7z" fill="#fff"/></symbol>
+<symbol id="g-runall" viewBox="0 0 32 32"><rect x="10" y="3" width="19" height="19" rx="4" fill="#9ccc9f"/><rect x="6.5" y="6.5" width="19" height="19" rx="4" fill="#5aa862"/><rect x="3" y="10" width="19" height="19" rx="4" fill="#2e8b3a"/><path d="M10 14.5v10l8-5z" fill="#fff"/></symbol>
+<symbol id="g-run" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" rx="4" fill="#2e8b3a"/><path d="M12 9v14l11-7z" fill="#fff"/></symbol>
+<symbol id="g-maps" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" fill="#fff" stroke="#55606c"/><rect x="4" y="4" width="8" height="8" fill="#30123b"/><rect x="12" y="4" width="8" height="8" fill="#4686fb"/><rect x="20" y="4" width="8" height="8" fill="#1ae4b6"/><rect x="4" y="12" width="8" height="8" fill="#4686fb"/><rect x="12" y="12" width="8" height="8" fill="#a2fc3c"/><rect x="20" y="12" width="8" height="8" fill="#fabb39"/><rect x="4" y="20" width="8" height="8" fill="#1ae4b6"/><rect x="12" y="20" width="8" height="8" fill="#fabb39"/><rect x="20" y="20" width="8" height="8" fill="#c42503"/></symbol>
+<symbol id="g-cut" viewBox="0 0 32 32"><rect x="3" y="3" width="17" height="17" fill="#b9d3ee" stroke="#3b5f8a"/><circle cx="11.5" cy="11.5" r="5" fill="#2e8b3a" fill-opacity=".7"/><path d="M3 11.5h17" stroke="#c0398f" stroke-width="1.8"/><path d="M8 29h21M8 22v7" stroke="#444"/><path d="M9 28c4 0 5-5 8-5s4 5 8 5" fill="none" stroke="#c0398f" stroke-width="1.6"/></symbol>
+<symbol id="g-zone" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" fill="#9aa6b2" stroke="#55606c"/><circle cx="16" cy="16" r="11" fill="#3b78d4"/><circle cx="16" cy="16" r="7.5" fill="#e0a21f"/><circle cx="16" cy="16" r="4.5" fill="#2e9e6b"/></symbol>
+<symbol id="g-radial" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M5 7c6 0 7 1 10 6s6 12 13 12" fill="none" stroke="#2a78d6" stroke-width="1.8"/><circle cx="8" cy="7.4" r="1.3" fill="#e0601f"/><circle cx="13" cy="10.5" r="1.3" fill="#e0601f"/><circle cx="17" cy="16.5" r="1.3" fill="#e0601f"/><circle cx="22" cy="22.6" r="1.3" fill="#e0601f"/></symbol>
+<symbol id="g-fluence" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M5 26c5 0 6-20 11-20s6 20 11 20" fill="#cfe3f6" stroke="#2a78d6" stroke-width="1.6"/><path d="M5 15h24" stroke="#c83c3b" stroke-width="1.5" stroke-dasharray="3 2"/></symbol>
+<symbol id="g-alpha" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M7 23c5-1 9-6 12-12s5-6 8-6" fill="none" stroke="#2a78d6" stroke-width="1.6"/><path d="M7 25c6-2 10-5 13-9s5-5 8-5" fill="none" stroke="#e0601f" stroke-width="1.6" stroke-dasharray="2.5 2"/><text x="11" y="15" font-size="11" font-style="italic" font-family="Georgia,serif" fill="#3b5f8a">α</text></symbol>
+<symbol id="g-calc" viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="26" rx="2" fill="#d9dee5" stroke="#6c7a89"/><rect x="9" y="6" width="14" height="6" fill="#e3f1e3" stroke="#2e8b3a" stroke-width=".9"/><g fill="#6c7a89"><rect x="9" y="15" width="3.5" height="3"/><rect x="14.25" y="15" width="3.5" height="3"/><rect x="9" y="20" width="3.5" height="3"/><rect x="14.25" y="20" width="3.5" height="3"/><rect x="9" y="24.5" width="3.5" height="2.5"/><rect x="14.25" y="24.5" width="3.5" height="2.5"/></g><rect x="19.5" y="15" width="3.5" height="12" fill="#e0601f"/></symbol>
+<symbol id="g-model" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6z" fill="#fff" stroke="#5f6b77"/><path d="M20 3v6h6" fill="none" stroke="#5f6b77"/><path d="M8 24h3l2-4 2 2 2-10 2 9 2-4 1.5 7H24" fill="none" stroke="#2a78d6" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+<symbol id="g-geo" viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="24" fill="#fff" stroke="#6c7a89"/><g fill="#2a78d6"><circle cx="9" cy="9" r="1.6"/><circle cx="16" cy="9" r="1.6"/><circle cx="23" cy="9" r="1.6"/><circle cx="9" cy="16" r="1.6"/><circle cx="16" cy="16" r="1.6"/><circle cx="23" cy="16" r="1.6"/><circle cx="9" cy="23" r="1.6"/><circle cx="16" cy="23" r="1.6"/><circle cx="23" cy="23" r="1.6"/></g></symbol>
+<symbol id="g-pick" viewBox="0 0 32 32"><circle cx="16" cy="16" r="8" fill="#fde3e8" stroke="#e0344f" stroke-width="1.8"/><path d="M16 3v8M16 21v8M3 16h8M21 16h8" stroke="#e0344f" stroke-width="1.8"/><circle cx="16" cy="16" r="1.8" fill="#e0344f"/></symbol>
+<symbol id="g-eye" viewBox="0 0 32 32"><path d="M3 16s5-8 13-8 13 8 13 8-5 8-13 8S3 16 3 16z" fill="#fff" stroke="#3b5f8a" stroke-width="1.6"/><circle cx="16" cy="16" r="4.5" fill="#2a78d6"/></symbol>
+<symbol id="g-eyeoff" viewBox="0 0 32 32"><path d="M3 16s5-8 13-8 13 8 13 8-5 8-13 8S3 16 3 16z" fill="#fff" stroke="#9aa6b2" stroke-width="1.6"/><circle cx="16" cy="16" r="4.5" fill="#b8c1cc"/><path d="M5 5l22 22" stroke="#c83c3b" stroke-width="2"/></symbol>
+<symbol id="g-proc" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M7 22l5-6 4 3 6-9 5 4" fill="none" stroke="#2a78d6" stroke-width="1.6"/><path d="M5 12h23" stroke="#2e8b3a" stroke-width="1.4" stroke-dasharray="3 2"/></symbol>
+
+<symbol id="g-focus" viewBox="0 0 32 32"><path d="M4 4l12 14L28 4" fill="#e7dcfb" stroke="#7c4fd6" stroke-width="1.4" stroke-linejoin="round"/><path d="M16 18L7 28M16 18l9 10" stroke="#7c4fd6" stroke-width="1.4" stroke-dasharray="2.5 2"/><circle cx="16" cy="18" r="5.5" fill="none" stroke="#c83c3b" stroke-width="1.6"/><path d="M16 10.5v4M16 21.5v4M8.5 18h4M19.5 18h4" stroke="#c83c3b" stroke-width="1.6"/><circle cx="16" cy="18" r="1.6" fill="#c83c3b"/></symbol>
+<symbol id="g-defdist" viewBox="0 0 32 32"><rect x="2" y="13" width="22" height="9" rx="1" fill="#f3d27a" stroke="#9c7a1c"/><path d="M6 13v4M10 13v3M14 13v4M18 13v3" stroke="#9c7a1c" stroke-width="1.2"/><circle cx="24" cy="10" r="6.5" fill="#d9822b"/><path d="M21.3 10a2.7 2.7 0 104.3-2.2" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M25.5 5.6l1.6 2.6-2.9.7z" fill="#fff"/></symbol>
+<symbol id="g-optlayout" viewBox="0 0 32 32"><rect x="2" y="3" width="28" height="26" rx="1.5" fill="#fff" stroke="#6c7a89"/><path d="M8 9h16v9H11v6" fill="none" stroke="#8b5cf6" stroke-width="2.2" stroke-linejoin="round"/><rect x="4" y="6.5" width="6" height="5" rx="1" fill="#9aa6b2" stroke="#55606c"/><path d="M21.5 6.5l5 5M21.5 15.5l5 5M8.5 15.5l5 5" stroke="#3b78d4" stroke-width="2.2"/><rect x="7" y="25" width="8" height="2.5" fill="#6c7a89"/></symbol>
+<symbol id="g-beam" viewBox="0 0 32 32"><defs><radialGradient id="gbmg"><stop offset="0" stop-color="#ffffff"/><stop offset=".25" stop-color="#7ff7ff"/><stop offset=".55" stop-color="#1e6bff"/><stop offset="1" stop-color="#0a1a8c"/></radialGradient></defs><rect x="3" y="3" width="26" height="26" fill="#0a1a8c" stroke="#2b3a4b"/><circle cx="16" cy="16" r="11" fill="url(#gbmg)"/><path d="M3 16h26M16 3v26" stroke="#fff" stroke-width=".8" stroke-dasharray="2 2" opacity=".8"/></symbol>
+<symbol id="g-snapshot" viewBox="0 0 32 32"><path d="M3 10h6l2-3h10l2 3h6v17H3z" fill="#d9dee5" stroke="#55606c"/><circle cx="16" cy="18" r="6" fill="#fff" stroke="#55606c"/><circle cx="16" cy="18" r="3.6" fill="#2a78d6"/><circle cx="25.5" cy="13" r="1.3" fill="#e0601f"/></symbol>
+<symbol id="g-laser" viewBox="0 0 32 32"><rect x="2" y="9" width="18" height="14" rx="2" fill="#9aa6b2" stroke="#55606c"/><rect x="5" y="12" width="8" height="2" fill="#55606c"/><path d="M20 16h10" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round"/></symbol>
+<symbol id="g-mirror" viewBox="0 0 32 32"><path d="M5 16h11V28" fill="none" stroke="#8b5cf6" stroke-width="2.2"/><rect x="9" y="13.5" width="16" height="5" rx="1" transform="rotate(45 16 16)" fill="#bfe2f5" stroke="#2b5d84" stroke-width="1.2"/></symbol>
+<symbol id="g-plate" viewBox="0 0 32 32"><path d="M16 3v26" stroke="#8b5cf6" stroke-width="2.2"/><rect x="6" y="13.5" width="20" height="5" rx="1" fill="#f3d9e7" stroke="#9b4a76" stroke-width="1.2"/></symbol>
+<symbol id="g-cmpbox" viewBox="0 0 32 32"><path d="M2 16h28" stroke="#8b5cf6" stroke-width="2.2"/><rect x="8" y="9" width="16" height="14" rx="2.5" fill="#e3e6eb" stroke="#55606c" stroke-width="1.2"/></symbol>
+<symbol id="g-scanner" viewBox="0 0 32 32"><path d="M16 2v5" stroke="#8b5cf6" stroke-width="2.2"/><rect x="8" y="7" width="16" height="11" rx="2" fill="#d9dee5" stroke="#55606c" stroke-width="1.2"/><path d="M11 18l5 9 5-9z" fill="#c9b5f5" opacity=".9"/><circle cx="16" cy="27" r="1.6" fill="#2b2b2b"/></symbol>
+<symbol id="g-stage" viewBox="0 0 32 32"><path d="M16 3l-4 13h8z" fill="#c9b5f5"/><rect x="4" y="19" width="24" height="6" rx="2" fill="#8a97a6" stroke="#3f4b58" stroke-width="1.2"/></symbol>
+<symbol id="g-optics" viewBox="0 0 32 32"><path d="M2 16h8M22 16h8" stroke="#8b5cf6" stroke-width="2"/><path d="M16 3c4 3 4 23 0 26-4-3-4-23 0-26z" fill="#cfe9f7" stroke="#2b5d84" stroke-width="1.3"/><path d="M10 16l6-6M10 16l6 6M22 16l-6-6M22 16l-6 6" stroke="#8b5cf6" stroke-width="1.2" opacity=".7"/></symbol>
+<symbol id="g-pin" viewBox="0 0 32 32"><path d="M19 3l10 10-3 1-5 5 1 6-3 3-5-6-7 7-1-1 7-7-6-5 3-3 6 1 5-5z" fill="#e0344f" stroke="#9c1f33" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="g-pinoff" viewBox="0 0 32 32"><path d="M19 3l10 10-3 1-5 5 1 6-3 3-5-6-7 7-1-1 7-7-6-5 3-3 6 1 5-5z" fill="#e6e8ec" stroke="#9aa6b2" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="g-target" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#fff" stroke="#c83c3b" stroke-width="1.6"/><circle cx="16" cy="16" r="8.5" fill="#fde3e8" stroke="#c83c3b" stroke-width="1.6"/><circle cx="16" cy="16" r="3.5" fill="#c83c3b"/></symbol>
+<symbol id="g-log" viewBox="0 0 32 32"><rect x="6" y="3" width="21" height="26" rx="1.5" fill="#fff" stroke="#6c7a89"/><path d="M6 3h4v26H6z" fill="#2a78d6"/><path d="M13 10h10M13 15h10M13 20h7" stroke="#8a97a6" stroke-width="1.6"/></symbol>
+<symbol id="g-loss" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="6" y="6" width="4" height="21" fill="#2a78d6"/><rect x="11" y="9" width="4" height="18" fill="#4f93e0"/><rect x="16" y="12" width="4" height="15" fill="#e0a21f"/><rect x="21" y="16" width="4" height="11" fill="#e0601f"/></symbol>
+<symbol id="g-norm" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><path d="M5 26c5 0 6-19 11-19s6 19 11 19" fill="none" stroke="#2a78d6" stroke-width="1.8"/><path d="M4 7h24" stroke="#2e8b3a" stroke-width="1.2" stroke-dasharray="2.5 2"/><text x="19" y="12" font-size="7.5" font-family="Arial,sans-serif" fill="#2e8b3a">1.0</text></symbol>
+<symbol id="g-guide" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" fill="#0a1a8c" stroke="#2b3a4b"/><circle cx="16" cy="16" r="7" fill="#1e9bff"/><circle cx="16" cy="16" r="3" fill="#bff8ff"/><path d="M3 16h26M16 3v26" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 2.5"/></symbol>
+<symbol id="g-3d" viewBox="0 0 32 32"><path d="M2 22l14 7 14-7-14-7z" fill="#e8f1fa" stroke="#3b5f8a" stroke-width="1.1"/><path d="M6 22c4 0 6-16 10-16s6 16 10 16" fill="#7fb0e6" fill-opacity=".55" stroke="#1f63b5" stroke-width="1.5"/></symbol>
+<symbol id="g-jsonout" viewBox="0 0 32 32"><path d="M5 3h14l6 6v20H5z" fill="#fff" stroke="#5f6b77"/><path d="M19 3v6h6" fill="none" stroke="#5f6b77"/><text x="7.5" y="21" font-size="8" font-weight="700" font-family="Arial,sans-serif" fill="#c98500">{ }</text><circle cx="24" cy="23" r="6.5" fill="#1f63b5"/><path d="M24 26.5v-6.4M21.3 22.8l2.7-2.9 2.7 2.9" fill="none" stroke="#fff" stroke-width="1.7"/></symbol>
+<symbol id="g-jsonin" viewBox="0 0 32 32"><path d="M5 3h14l6 6v20H5z" fill="#fff" stroke="#5f6b77"/><path d="M19 3v6h6" fill="none" stroke="#5f6b77"/><text x="7.5" y="21" font-size="8" font-weight="700" font-family="Arial,sans-serif" fill="#c98500">{ }</text><circle cx="24" cy="23" r="6.5" fill="#2e8b3a"/><path d="M24 19.5v6.4M21.3 23.2l2.7 2.9 2.7-2.9" fill="none" stroke="#fff" stroke-width="1.7"/></symbol>
+
+</defs></svg>
+<div id="app">
+  <header class="appbar">
+    <img class="logo" alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJhIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMmEzNTUwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMTIxODI2Ii8+PC9saW5lYXJHcmFkaWVudD48cmFkaWFsR3JhZGllbnQgaWQ9ImIiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIvPjxzdG9wIG9mZnNldD0iLjMiIHN0b3AtY29sb3I9IiNlM2Q0ZmYiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM4YjVjZjYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvcmFkaWFsR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjEzIiBmaWxsPSJ1cmwoI2EpIi8+PHBhdGggZD0iTTYgMTVoNDB2MTVIMjJ2MTEiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2E3OGJmYSIgc3Ryb2tlLXdpZHRoPSI0LjUiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNMTUgNDFoMTRsLTcgMTN6IiBmaWxsPSIjYTc4YmZhIiBvcGFjaXR5PSIuNTUiLz48cmVjdCB4PSI0MCIgeT0iMTIuNSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjUiIHJ4PSIxLjUiIHRyYW5zZm9ybT0icm90YXRlKDQ1IDQ2IDE1KSIgZmlsbD0iI2NmZTlmNyIvPjxyZWN0IHg9IjQwIiB5PSIyNy41IiB3aWR0aD0iMTQiIGhlaWdodD0iNSIgcng9IjEuNSIgdHJhbnNmb3JtPSJyb3RhdGUoLTQ1IDQ2IDMwKSIgZmlsbD0iI2NmZTlmNyIvPjxyZWN0IHg9IjE2IiB5PSIyNy41IiB3aWR0aD0iMTQiIGhlaWdodD0iNSIgcng9IjEuNSIgdHJhbnNmb3JtPSJyb3RhdGUoLTQ1IDIyIDMwKSIgZmlsbD0iI2NmZTlmNyIvPjxjaXJjbGUgY3g9IjIyIiBjeT0iNTQiIHI9IjgiIGZpbGw9InVybCgjYikiLz48cmVjdCB4PSIxMCIgeT0iNTciIHdpZHRoPSIyNCIgaGVpZ2h0PSIzIiByeD0iMS41IiBmaWxsPSIjOGE5N2E2Ii8+PC9zdmc+Cg==">
+    <div class="qa">
+      <button class="qbtn" data-act="process" title="Process — apply the current settings"><svg class="i"><use href="#g-process"/></svg></button>
+      <button class="qbtn" data-act="focus" title="Find Focus (set Scanner–Stage to f = 255 mm)"><svg class="i"><use href="#g-focus"/></svg></button>
+      <button class="qbtn" data-act="snapshot" title="Save Snapshot"><svg class="i"><use href="#g-snapshot"/></svg></button>
+    </div>
+    <div class="ttl">Virtual Optics System — BeamPath</div>
+  </header>
+
+  <nav class="rtabs" role="tablist">
+    <button class="rtab" data-r="home" aria-selected="true">Home</button>
+    <button class="rtab" data-r="results" aria-selected="false">Results</button>
+    <button class="rtab" data-r="log" aria-selected="false">Log</button>
+  </nav>
+  <div class="ribbon">
+    <div class="rpage" data-r="home">
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-act="process" title="Apply the current Laser Source and Component settings"><svg class="ib"><use href="#g-process"/></svg><span>Process</span></button>
+        <button class="bbtn" data-act="focus" title="Set Scanner–Stage distance to f = 255 mm (h_p = 0)"><svg class="ib"><use href="#g-focus"/></svg><span>Find<br>Focus</span></button>
+        <button class="bbtn" data-act="defaults" title="Reset every path distance to its default"><svg class="ib"><use href="#g-defdist"/></svg><span>Default<br>Distances</span></button>
+      </div><div class="rlabel">Setup</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-view="layout" aria-pressed="true" title="Optical layout with the beam path"><svg class="ib"><use href="#g-optlayout"/></svg><span>Optical<br>Layout</span></button>
+        <button class="bbtn" data-view="profile" aria-pressed="false" title="Beam profile at the stage with X/Y cross-sections"><svg class="ib"><use href="#g-beam"/></svg><span>Beam<br>Profile</span></button>
+        <button class="bbtn" data-view="results" aria-pressed="false" title="Summary, stage processing info, loss analysis and targets"><svg class="ib"><use href="#g-table"/></svg><span>Results</span></button>
+        <button class="bbtn" id="play-pause-btn" aria-pressed="true" title="Animate the beam pulse along the path"><svg class="ib"><use href="#g-pathpause"/></svg><span>Beam<br>Pulse</span></button>
+      </div><div class="rlabel">View</div></div>
+      <div class="rgroup"><div class="rbody">
+        <div class="scol">
+          <button class="sbtn" data-pane="set" aria-pressed="true" title="Show or hide the Settings panel"><svg class="i"><use href="#g-pset"/></svg>Settings</button>
+          <button class="sbtn" data-pane="msg" aria-pressed="true" title="Show or hide the Messages panel"><svg class="i"><use href="#g-pmsg"/></svg>Messages</button>
+          <button class="sbtn" data-act="resetLayout" title="Reset panel layout"><svg class="i"><use href="#g-layout"/></svg>Reset Layout</button>
+        </div>
+      </div><div class="rlabel">Layout</div></div>
+    </div>
+    <div class="rpage" data-r="results" hidden>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-view="layout" aria-pressed="true" title="Optical layout with the beam path"><svg class="ib"><use href="#g-optlayout"/></svg><span>Optical<br>Layout</span></button>
+        <button class="bbtn" data-view="profile" aria-pressed="false" title="Beam profile at the stage with X/Y cross-sections"><svg class="ib"><use href="#g-beam"/></svg><span>Beam<br>Profile</span></button>
+        <button class="bbtn" data-view="results" aria-pressed="false" title="Summary, stage processing info, loss analysis and targets"><svg class="ib"><use href="#g-table"/></svg><span>Results</span></button>
+      </div><div class="rlabel">Views</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-act="zin" title="Zoom In"><svg class="ib"><use href="#g-zin"/></svg><span>Zoom<br>In</span></button>
+        <button class="bbtn" data-act="zout" title="Zoom Out"><svg class="ib"><use href="#g-zout"/></svg><span>Zoom<br>Out</span></button>
+        <button class="bbtn" data-act="zfit" title="Fit the view to the current spot size"><svg class="ib"><use href="#g-autoscale"/></svg><span>Auto<br>Scale</span></button>
+      </div><div class="rlabel">Profile</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-tog="normalize" aria-pressed="false" title="Normalize intensity to 0–1"><svg class="ib"><use href="#g-norm"/></svg><span>Normalize</span></button>
+        <button class="bbtn" data-tog="guide" aria-pressed="true" title="Show center guide lines"><svg class="ib"><use href="#g-guide"/></svg><span>Guide<br>Lines</span></button>
+        <button class="bbtn" data-tog="3d" aria-pressed="false" title="3D surface view"><svg class="ib"><use href="#g-3d"/></svg><span>3D<br>View</span></button>
+        <div class="scol" style="padding-top:6px">
+          <label class="rfield" title="Colormap">Colormap <select id="colormap" style="width:92px">
+            <option value="inferno">Inferno</option><option value="jet" selected>Jet</option>
+            <option value="viridis">Viridis</option><option value="gray">Gray</option>
+          </select></label>
+        </div>
+      </div><div class="rlabel">Display</div></div>
+      <div class="rgroup"><div class="rbody">
+        <div class="scol">
+          <button class="sbtn" id="dl-beam" title="Export the beam profile as PNG"><svg class="i"><use href="#g-png"/></svg>Beam Profile</button>
+          <button class="sbtn" id="dl-x" title="Export the X-profile as PNG"><svg class="i"><use href="#g-png"/></svg>X-profile</button>
+          <button class="sbtn" id="dl-y" title="Export the Y-profile as PNG"><svg class="i"><use href="#g-png"/></svg>Y-profile</button>
+        </div>
+      </div><div class="rlabel">Export Image</div></div>
+    </div>
+    <div class="rpage" data-r="log" hidden>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-act="snapshot" title="Save the current settings (and an optional image) to the log"><svg class="ib"><use href="#g-snapshot"/></svg><span>Save<br>Snapshot</span></button>
+        <button class="bbtn" data-act="showLog" title="Open the Measurement Log"><svg class="ib"><use href="#g-log"/></svg><span>Measurement<br>Log</span></button>
+      </div><div class="rlabel">Snapshot</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" id="log-export-btn" title="Export the log as JSON"><svg class="ib"><use href="#g-jsonout"/></svg><span>Export<br>JSON</span></button>
+        <button class="bbtn" id="log-import-btn" title="Import a JSON log exported from this tool"><svg class="ib"><use href="#g-jsonin"/></svg><span>Import<br>JSON</span></button>
+        <input type="file" id="log-import-file" accept="application/json" hidden>
+      </div><div class="rlabel">Data</div></div>
+    </div>
+  </div>
+
+  <main class="work" id="work">
+    <section class="pane tree-pane">
+      <div class="phead"><span class="ptitle">Workspace</span><div class="phbtns">
+        <button class="qbtn" data-act="collapseAll" title="Collapse All"><svg class="i"><use href="#g-collapse"/></svg></button>
+        <button class="qbtn" data-act="expandAll" title="Expand All"><svg class="i"><use href="#g-expand"/></svg></button>
+      </div></div>
+      <div class="pbody"><ul class="tree" id="tree"></ul></div>
+    </section>
+    <div class="split v" id="split1" title="Drag to resize · double-click to reset"></div>
+    <section class="pane set-pane" id="setPane">
+      <div class="phead"><span class="ptitle">Settings</span></div>
+      <div class="psub" id="psub">Optical Setup</div>
+      <div class="pbody sform">
+        <details class="sec" data-sec="laser" open><summary>Laser Source</summary><div class="sbody">
+          <div class="f"><label>Wavelength</label>
+            <select id="wavelength">
+              <option value="1064">1064nm IR</option>
+              <option value="532">532nm Green</option>
+              <option value="355" selected>355nm UV</option>
+              <option value="266">266nm DeepUV</option>
+            </select></div>
+          <div class="f"><label>P<sub>avg</sub></label><div class="funit"><input type="number" id="pavg" value="3.5" step="0.1" min="0.1" max="20"><span>W</span></div></div>
+          <div class="f"><label>Rep rate</label><div class="funit"><input type="number" id="reprate" value="50" step="1" min="1" max="500"><span>kHz</span></div></div>
+          <div class="f"><label>Pulse width</label><div class="funit"><input type="number" id="pulsewidth" value="17" step="1" min="1" max="200"><span>ns</span></div></div>
+          <div class="f"><label>M² (beam quality)</label><div class="funit"><input type="number" id="msq" value="1.2" step="0.05" min="1" max="3"><span></span></div></div>
+          <div class="f"><label title="Editable — enter your own beam-profiler measurement here. Default (192 µm) is only a fallback taken from a published reference paper's specific setup, not your bench.">Measured Focus ⌀</label><div class="funit"><input type="number" id="focusDiaInput" value="192" step="1" min="1" max="2000"><span>μm</span></div>
+            <div class="note" id="w0-derived">w₀' = 96.0 μm</div></div>
+          <div class="f"><label title="Huaray Poplar-355-3&amp;5 spec: beam diameter at laser outlet is &lt; 8mm.">Raw Beam ⌀</label><div class="funit"><input type="number" id="rawBeamDia" value="8" step="0.1" min="0.1" max="50"><span>mm</span></div></div>
+          <div class="f"><label title="Huaray Poplar-355-3&amp;5 spec: full-angle divergence ≤ 2mrad at the laser outlet.">Divergence</label><div class="funit"><input type="number" id="divergence" value="2" step="0.1" min="0.01" max="50"><span>mrad</span></div></div>
+          <button class="btn go block process-btn-icon" title="Apply changes">Process</button>
+        </div></details>
+        <details class="sec" data-sec="comp" open><summary>Component Values</summary><div class="sbody">
+          <div class="f"><label>Attenuator T</label><div class="funit"><input type="number" id="attT" value="80" step="1" min="0" max="100"><span>%</span></div></div>
+          <div class="f"><label>Mirror R (shared)</label><div class="funit"><input type="number" id="mirrorR" value="99" step="0.1" min="80" max="100"><span>%</span></div></div>
+          <div class="f" id="field-betM"><label>BET Mag. M<sub>BET</sub></label><div class="funit"><input type="number" id="betM" value="2.0" step="0.1" min="1" max="10"><span>×</span></div></div>
+          <div class="f" id="field-betT"><label>BET T</label><div class="funit"><input type="number" id="betT" value="98" step="1" min="0" max="100"><span>%</span></div></div>
+          <div class="f"><label>Waveplate type</label>
+            <select id="wpType"><option value="half">λ/2 (Half)</option><option value="quarter">λ/4 (Quarter)</option></select></div>
+          <div class="f"><label>Fast axis</label><div class="funit"><input type="number" id="wpAngle" value="0" step="1" min="0" max="180"><span>°</span></div></div>
+          <div class="f"><label>Waveplate T</label><div class="funit"><input type="number" id="wpT" value="99" step="1" min="0" max="100"><span>%</span></div></div>
+          <div class="f"><label title="Manual finding: laser output is horizontal linear, but mirrors + scanner rotate it ~11° by the time it reaches the stage. Re-measure whenever the laser or optics change.">Path rotation</label><div class="funit"><input type="number" id="pathPolRotation" value="11" step="0.5" min="-90" max="90"><span>°</span></div></div>
+          <div class="note">Turn components on or off with the check boxes under Beam Path in the Workspace.</div>
+          <button class="btn go block process-btn-icon" title="Apply changes">Process</button>
+        </div></details>
+        <details class="sec" data-sec="dist" open><summary>Path Distance</summary><div class="sbody">
+          <div id="distance-controls" style="display:flex;flex-direction:column;gap:5px"></div>
+          <hr>
+          <div class="dual" id="distctl-scanstage">
+            <div class="lbl" title="Scanner output to stage, mm">Scanner–Stage</div>
+            <div class="row"><button class="stepbtn" data-step="-10" data-target="scanstage">−</button><input type="range" id="z-slider"><button class="stepbtn" data-step="10" data-target="scanstage">+</button><input type="number" id="z-num"></div>
+          </div>
+          <div class="note">All distances in mm. Path shape is fixed — toggling a component only removes its icon, not the beam path.</div>
+          <div class="btnrow"><button class="btn go" id="find-focus-btn" style="flex:1;justify-content:center" title="Set Scanner–Stage to f = 255 mm">Find Focus</button><button class="btn" id="reset-default" style="flex:1;justify-content:center">Default Distances</button></div>
+        </div></details>
+        <details class="sec" data-sec="targets" open><summary>Targets</summary><div class="sbody">
+          <div class="f"><label>Target fluence</label><div class="funit"><input type="number" id="target-f" placeholder="e.g. 110" step="1"><span>mJ/cm²</span></div></div>
+          <div class="f"><label>Target spot ⌀</label><div class="funit"><input type="number" id="target-spot" placeholder="e.g. 300" step="1"><span>μm</span></div></div>
+          <div class="note">The required stage distances appear under Targets in the Results window.</div>
+        </div></details>
+        <details class="sec" data-sec="log" open><summary>Measurement Log</summary><div class="sbody">
+          <div class="note">Saved in this browser only (no server).</div>
+          <div class="f"><label>Note</label><input type="text" id="log-note" placeholder="e.g. after realigning M3"></div>
+          <div class="f"><label>Beam profile image (optional)</label><input type="file" id="log-image" accept="image/*"></div>
+          <button class="btn go block" id="log-save-btn">Save Snapshot</button>
+          <div id="log-list"></div>
+        </div></details>
+      </div>
+    </section>
+    <div class="split v" id="split2" title="Drag to resize · double-click to reset"></div>
+    <div class="right" id="right">
+      <section class="pane gfx-pane">
+        <div class="wtabs">
+          <button class="wtab" data-view="layout" aria-selected="true">Optical Layout</button>
+          <button class="wtab" data-view="profile" aria-selected="false">Beam Profile</button>
+          <button class="wtab" data-view="results" aria-selected="false">Results</button>
+        </div>
+        <div class="gtool" id="gtool">
+          <span class="gt-layout" style="display:contents">
+            <button class="qbtn" data-act="pulse" id="gPulse" aria-pressed="true" title="Animate the beam pulse"><svg class="i"><use href="#g-pathpause"/></svg></button>
+            <button class="qbtn" data-act="focus" title="Find Focus"><svg class="i"><use href="#g-focus"/></svg></button>
+            <button class="qbtn" data-act="defaults" title="Default Distances"><svg class="i"><use href="#g-defdist"/></svg></button>
+          </span>
+          <span class="gt-profile" style="display:none">
+            <button class="qbtn" id="zoom-in" title="Zoom In"><svg class="i"><use href="#g-zin"/></svg></button>
+            <button class="qbtn" id="zoom-out" title="Zoom Out"><svg class="i"><use href="#g-zout"/></svg></button>
+            <button class="qbtn" id="zoom-reset" title="Auto Scale"><svg class="i"><use href="#g-autoscale"/></svg></button>
+            <span class="glab" id="zoom-label">±– μm</span>
+            <div class="gsep"></div>
+            <button class="qbtn" id="normalize-toggle" data-tog="normalize" aria-pressed="false" title="Normalize (0–1)"><svg class="i"><use href="#g-norm"/></svg></button>
+            <button class="qbtn on" id="guide-toggle" data-tog="guide" aria-pressed="true" title="Guide Lines"><svg class="i"><use href="#g-guide"/></svg></button>
+            <button class="qbtn" id="profile-3d-toggle" data-tog="3d" aria-pressed="false" title="3D View"><svg class="i"><use href="#g-3d"/></svg></button>
+            <div class="gsep"></div>
+            <button class="qbtn" data-act="exBeam" title="Export Beam Profile PNG"><svg class="i"><use href="#g-png"/></svg></button>
+          </span>
+          <span class="gt-results" style="display:none">
+            <button class="qbtn" data-act="process" title="Process"><svg class="i"><use href="#g-process"/></svg></button>
+            <button class="qbtn" data-act="targets" title="Targets"><svg class="i"><use href="#g-target"/></svg></button>
+          </span>
+        </div>
+        <div class="gbody">
+          <div class="view" data-view="layout"><svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg><div class="lcap">Laser → Att.&amp;Shutter → M1 → M2 → BET → M3 → M4 → M5 → Waveplate → Scanner → Stage · f = 255 mm (fixed)</div></div>
+          <div class="view" data-view="profile" hidden><div class="pwrap" id="pwrap"><canvas id="profileCanvas" width="1500" height="480"></canvas></div></div>
+          <div class="view" data-view="results" hidden>
+            <div class="rgrid">
+              <div class="rcard" id="card-summary"><h3>Summary</h3><table class="ptab"><tbody id="summary-table"></tbody></table></div>
+              <div class="rcard" id="card-stage"><h3>Stage Processing Info</h3><table class="ptab"><tbody id="stageinfo-table"></tbody></table></div>
+              <div class="rcard" id="card-loss"><h3>Loss Analysis</h3><table class="ptab"><tbody id="loss-list"></tbody></table></div>
+              <div class="rcard" id="card-targets"><h3>Targets</h3>
+                <div class="tsub">Target fluence</div>
+                <table class="ptab" id="target-f-table" style="display:none"><tbody></tbody></table>
+                <div class="target-status" id="target-f-status">Enter a value above.</div>
+                <div class="tsub">Target spot ⌀</div>
+                <table class="ptab" id="target-spot-table" style="display:none"><tbody></tbody></table>
+                <div class="target-status" id="target-spot-status">Enter a value above.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="split h" id="split3" title="Drag to resize · double-click to reset"></div>
+      <section class="pane msg-pane" id="msgPane">
+        <div class="wtabs"><button class="wtab" aria-selected="true">Messages</button></div>
+        <div class="mbody"><div class="log" id="msglog"></div></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <span class="msg" id="smsg">Ready</span>
+    <span class="kv" id="sPow"></span><span class="kv" id="sSpot"></span><span class="kv" id="sHp"></span><span class="kv" id="sFlu"></span>
+  </footer>
+</div>
+
+<script>
+
+/* ===================== 상수 ===================== */
+const CAL_LAMBDA=355, FOCAL_LENGTH_MM=255;
+const SCANNER_GAP_PX=100;
+const WAVELENGTHS={1064:{color:'#e63946'},532:{color:'#16a34a'},355:{color:'#8b5cf6'},266:{color:'#6d28d9'}};
+const COMP_LABEL={atten:'Atten.',shutter:'Shutter',m1:'M1',m2:'M2',bet:'BET',m3:'M3',m4:'M4',m5:'M5',waveplate:'Waveplate'};
+const COMPONENT_DEFS={
+  atten:{shape:'box', w:86, h:52, lines:['ATTEN.']},
+  shutter:{shape:'box', w:86, h:52, lines:['SHUTTER']},
+  m1:{shape:'mirror'}, m2:{shape:'mirror'},
+  bet:{shape:'box', w:104, h:56, lines:['BEAM','EXPANDER']},
+  m3:{shape:'mirror'}, m4:{shape:'mirror'}, m5:{shape:'mirror'},
+  waveplate:{shape:'plate', lines:[]},
+};
+// 고정 경로 형태: 각 미러가 진행방향을 어디로 꺾는지 + 그릴 때 tilt 각도(반사 기하로 계산됨)
+const MIRROR_TURN={
+  m1:{out:[0,1],  angle:45},   // right → down  ("\\")
+  m2:{out:[-1,0], angle:-45},  // down → left   ("/")
+  m3:{out:[0,1],  angle:-45},  // left → down   ("/")
+  m4:{out:[1,0],  angle:45},   // down → right  ("\\")
+  m5:{out:[0,1],  angle:45},   // right → down  ("\\")
+};
+const ORDER=['atten','shutter','m1','m2','bet','m3','m4','m5','waveplate']; // 고정 순서(물리 계산/리스트 표시용)
+const MIRROR_LEN=52, MIRROR_THICK=9;
+const PLATE_LEN=48, PLATE_THICK=7;
+const WP_SCANNER_GLUE_PX=22; // waveplate는 항상 scanner 바로 앞에 붙어서 배치 (거리 조절 불가)
+
+const state={
+  wavelength:355, pavg:3.5, reprate:50, pulsewidth:17, mSquared:1.2,
+  attT:80, betM:2.0, betT:98, mirrorR:99,
+  wpT:99, wpType:'half', wpAngle:0, pathPolRotation:11,
+  w0CalUm:96, // 사용자 실측 기반 캘리브레이션 (radius, μm @ CAL_LAMBDA, BET off) — UI에는 지름으로 입력받음
+  rawBeamDiaMm:8, divergenceMrad:2, // Huaray Poplar-355 스펙시트 (라벨: <8mm, ≤2mrad)
+  scanStageDist:360, // mm, scanner 출력~stage 실측 거리
+  active:{atten:true,shutter:true,m1:true,m2:true,bet:false,m3:true,m4:true,m5:true,waveplate:true},
+  pinned:{atten:true,shutter:true,m1:false,m2:false,bet:false,m3:false,m4:false,m5:false,waveplate:true},
+  dist:{atten:350, shutter:210, m1:330, m2:350, bet:380, m3:380, m4:300, m5:420, waveplate:270},
+  profileZoomUm:null, profile3D:false, profileColormap:'jet', profileGuide:true, profileNormalize:false
+};
+function hp_mm(){ return state.scanStageDist - FOCAL_LENGTH_MM; } // focal 기준 defocus (내부 계산용)
+
+/* ===================== 물리 계산 ===================== */
+function lambda_m(){ return state.wavelength*1e-9; }
+function w0_m(){
+  let w0=(state.w0CalUm*(state.wavelength/CAL_LAMBDA))*1e-6;
+  if(state.active.bet && state.betM>0) w0/=state.betM;
+  return w0;
+}
+function zR_m(){ const w0=w0_m(); return Math.PI*w0*w0/(lambda_m()*state.mSquared); }
+function theoreticalFocusDia_um(){
+  // Edmund Optics beam expander guide, Eq.11 diffraction term only (aberration term omitted — needs lens curvature/index not modeled here)
+  const f_m = FOCAL_LENGTH_MM/1000;
+  const D_I_m = (state.rawBeamDiaMm/1000) * (state.active.bet && state.betM>0 ? state.betM : 1);
+  if(D_I_m<=0) return NaN;
+  const phi_m = (4*lambda_m()*state.mSquared*f_m)/(Math.PI*D_I_m);
+  return phi_m*1e6; // diameter, μm
+}
+function w_at_z_m(z_mm){ const w0=w0_m(), zr=zR_m(), z=z_mm*1e-3; return w0*Math.sqrt(1+(z/zr)*(z/zr)); }
+
+/* ===================== Jones calculus (편광, 파동방정식 기반) =====================
+   Gaussian beam w(z)/z_R 자체가 paraxial Helmholtz 방정식의 해이고,
+   편광은 전기장 벡터 성분이므로 스칼라 각도 암산이 아니라 Jones vector/matrix로 다뤄야 정확함. */
+function cAdd(a,b){ return [a[0]+b[0], a[1]+b[1]]; }
+function cMul(a,b){ return [a[0]*b[0]-a[1]*b[1], a[0]*b[1]+a[1]*b[0]]; }
+function cConj(a){ return [a[0],-a[1]]; }
+function cAbs2(a){ return a[0]*a[0]+a[1]*a[1]; }
+function matVec(M,v){ return [cAdd(cMul(M[0][0],v[0]),cMul(M[0][1],v[1])), cAdd(cMul(M[1][0],v[0]),cMul(M[1][1],v[1]))]; }
+function matMul(A,B){
+  const r=[[[0,0],[0,0]],[[0,0],[0,0]]];
+  for(let i=0;i<2;i++) for(let j=0;j<2;j++){
+    let s=[0,0];
+    for(let k=0;k<2;k++) s=cAdd(s, cMul(A[i][k], B[k][j]));
+    r[i][j]=s;
+  }
+  return r;
+}
+function jonesR(theta){ const c=Math.cos(theta), s=Math.sin(theta); return [[[c,0],[-s,0]],[[s,0],[c,0]]]; }
+function jonesDiag(a,b){ return [[a,[0,0]],[[0,0],b]]; }
+function jonesHWP(theta){ return matMul(matMul(jonesR(theta), jonesDiag([1,0],[-1,0])), jonesR(-theta)); }
+function jonesQWP(theta){ return matMul(matMul(jonesR(theta), jonesDiag([1,0],[0,1])), jonesR(-theta)); }
+function jonesOutputState(){
+  // 입력: laser는 광학테이블 기준 수평 선편광 (매뉴얼 실측, Polarization Ratio >100:1 Horizontal)
+  let E = [[1,0],[0,0]];
+  // 미러(M1~M5)+scanner가 유발하는 기생 회전이 waveplate보다 먼저 지나가는 경로이므로 WP 이전에 적용
+  E = matVec(jonesR(state.pathPolRotation*Math.PI/180), E);
+  if(state.active.waveplate){
+    const J = state.wpType==='half' ? jonesHWP(state.wpAngle*Math.PI/180) : jonesQWP(state.wpAngle*Math.PI/180);
+    E = matVec(J, E);
+  }
+  const Ex=E[0], Ey=E[1];
+  const Ex2=cAbs2(Ex), Ey2=cAbs2(Ey);
+  const ExEyc=cMul(Ex, cConj(Ey));
+  const psi = 0.5*Math.atan2(2*ExEyc[0], Ex2-Ey2); // 편광 장축 방위각 (rad)
+  const denom = Ex2+Ey2;
+  const chi = denom>1e-12 ? 0.5*Math.asin(Math.max(-1,Math.min(1, 2*ExEyc[1]/denom))) : 0; // 타원율 각 (rad)
+  return { psiDeg: (psi*180/Math.PI+180)%180, chiDeg: chi*180/Math.PI, Ex, Ey };
+}
+function outputPolarizationLabel(){
+  const s = jonesOutputState();
+  const chiAbs = Math.abs(s.chiDeg);
+  if(chiAbs < 0.5) return `${s.psiDeg.toFixed(1)}° linear (Jones)`;
+  if(chiAbs > 44.5) return `circular, ${s.chiDeg>0?'left':'right'}-handed (Jones)`;
+  return `elliptical, axis ${s.psiDeg.toFixed(1)}°, χ=${s.chiDeg.toFixed(1)}° (Jones)`;
+}
+function gouyPhaseDeg(z_mm){ return Math.atan((z_mm*1e-3)/zR_m())*180/Math.PI; }
+function wavefrontR_mm(z_mm){
+  const z=z_mm*1e-3, zr=zR_m();
+  if(Math.abs(z)<1e-9) return Infinity;
+  return (z*(1+(zr/z)*(zr/z)))*1000;
+}
+function farFieldDivergence_mrad(){ return (state.mSquared*lambda_m())/(Math.PI*w0_m())*1000; }
+function numericalApertureEq(){ return w0_m()/(FOCAL_LENGTH_MM/1000); }
+function predictedLIPSSOrientationLabel(){
+  const s = jonesOutputState();
+  if(Math.abs(s.chiDeg) > 20) return 'undefined (elliptical/circular)';
+  return ((s.psiDeg+90)%180).toFixed(1)+'° (⊥ to E-field)';
+}
+function stepT(id){
+  if(id==='atten') return state.attT/100;
+  if(id==='shutter') return 0.995;
+  if(id==='bet') return state.betT/100;
+  if(id==='waveplate') return state.wpT/100;
+  return state.mirrorR/100;
+}
+function transmission(){
+  let T=1; ORDER.forEach(id=>{ if(state.active[id]) T*=stepT(id); }); return T;
+}
+function Pstage_W(){ return state.pavg*transmission(); }
+function Epulse_J(){ return Pstage_W()/(state.reprate*1e3); }
+function fluence_mJcm2(z_mm){
+  const w_cm=w_at_z_m(z_mm)*100, area=Math.PI*w_cm*w_cm;
+  return (2*Epulse_J()/area)*1000;
+}
+function requiredZ_mm(targetF){
+  const F_Jcm2=targetF/1000, E=Epulse_J(), w0=w0_m();
+  const w_needed_m=Math.sqrt(2*E/(Math.PI*F_Jcm2))/100;
+  if(w_needed_m<w0*0.999) return null;
+  const ratio=w_needed_m/w0;
+  return zR_m()*Math.sqrt(Math.max(ratio*ratio-1,0))*1000;
+}
+function requiredZ_from_spot_um(targetDiameterUm){
+  const w0_um=w0_m()*1e6;
+  const w_needed_um=targetDiameterUm/2;
+  if(w_needed_um<w0_um*0.999) return null;
+  const ratio=w_needed_um/w0_um;
+  return zR_m()*Math.sqrt(Math.max(ratio*ratio-1,0))*1000;
+}
+function cumulativeAt(id){
+  if(id==='laser') return 1;
+  let T=1;
+  for(const oid of ORDER){
+    if(state.active[oid]) T*=stepT(oid);
+    if(oid===id) return T;
+  }
+  return T;
+}
+function lossChain(){
+  let P=state.pavg;
+  const rows=[{label:'Laser Output',T:null,P}];
+  ORDER.forEach(id=>{
+    if(!state.active[id]) return;
+    const T=stepT(id); P*=T;
+    rows.push({label:COMP_LABEL[id],T,P});
+  });
+  rows.push({label:'Reached Stage',T:null,P,final:true});
+  return rows;
+}
+
+/* ===================== 색상 / 컬러맵 ===================== */
+function shade(hex,percent){
+  let f=parseInt(hex.slice(1),16), t=percent<0?0:255, p=Math.abs(percent)/100;
+  let R=f>>16,G=(f>>8)&0xFF,B=f&0xFF;
+  return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+}
+function currentColor(){ return WAVELENGTHS[state.wavelength].color; }
+function lerpStops(t,stops){
+  t=Math.max(0,Math.min(1,t));
+  for(let i=0;i<stops.length-1;i++){
+    const [t0,c0]=stops[i], [t1,c1]=stops[i+1];
+    if(t>=t0 && t<=t1){ const f=(t-t0)/(t1-t0);
+      return [Math.round(c0[0]+(c1[0]-c0[0])*f),Math.round(c0[1]+(c1[1]-c0[1])*f),Math.round(c0[2]+(c1[2]-c0[2])*f)];
+    }
+  }
+  return stops[stops.length-1][1];
+}
+function cmapRGB(t){
+  const maps={
+    inferno:[[0,[6,6,22]],[0.25,[85,10,120]],[0.5,[190,35,95]],[0.75,[250,140,35]],[1,[255,250,225]]],
+    jet:[[0,[0,0,128]],[0.11,[0,0,255]],[0.34,[0,255,255]],[0.5,[0,255,0]],[0.65,[255,255,0]],[0.78,[255,128,0]],[0.89,[255,0,0]],[1,[128,0,0]]],
+    viridis:[[0,[68,1,84]],[0.33,[59,82,139]],[0.66,[33,144,141]],[1,[253,231,37]]],
+    gray:[[0,[10,10,10]],[1,[255,255,255]]],
+  };
+  return lerpStops(t, maps[state.profileColormap]||maps.jet);
+}
+
+/* ===================== 레이아웃 (고정 형태, 컴포넌트 on/off와 무관) ===================== */
+function mmToPx(mm){ return Math.max(90, Math.min(320, mm*0.55)); }
+function computeLayout(){
+  const pos={ laser:{x:90,y:100} };
+  let cur=pos.laser, dir=[1,0];
+  ['atten','shutter','m1','m2','bet','m3','m4','m5'].forEach(id=>{
+    const px=mmToPx(state.dist[id]);
+    const p={x:cur.x+dir[0]*px, y:cur.y+dir[1]*px};
+    pos[id]=p; pos[id]._dir=dir.slice();
+    if(MIRROR_TURN[id]) dir=MIRROR_TURN[id].out.slice();
+    cur=p;
+  });
+  // scanner: M5에서 "M5-Scanner" 거리(dist.waveplate 슬라이더)만큼 이동
+  const scannerPx=mmToPx(state.dist.waveplate);
+  pos.scanner={x:cur.x+dir[0]*scannerPx, y:cur.y+dir[1]*scannerPx};
+  pos.scanner._dir=dir.slice();
+  // waveplate: scanner 바로 앞(고정 간격)에 항상 붙여서 배치
+  pos.waveplate={x:pos.scanner.x-dir[0]*WP_SCANNER_GLUE_PX, y:pos.scanner.y-dir[1]*WP_SCANNER_GLUE_PX};
+  pos.waveplate._dir=dir.slice();
+  return pos;
+}
+
+/* ===================== SVG 그리기 ===================== */
+const svgNS="http://www.w3.org/2000/svg";
+const scene=document.getElementById('scene');
+let gradId=0;
+function el(tag,attrs){ const e=document.createElementNS(svgNS,tag); Object.keys(attrs).forEach(k=>e.setAttribute(k,attrs[k])); return e; }
+
+function drawMirror(parent,cx,cy,angle){
+  gradId++; const gid='m'+gradId;
+  const defs=scene.querySelector('defs');
+  const grad=el('linearGradient',{id:gid,x1:'0',y1:'0',x2:'0',y2:'1'});
+  grad.appendChild(el('stop',{offset:'0%','stop-color':'#eaf6ff'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color':'#a9d8f0'}));
+  defs.appendChild(grad);
+  const rect=el('rect',{x:cx-MIRROR_LEN/2,y:cy-MIRROR_THICK/2,width:MIRROR_LEN,height:MIRROR_THICK,rx:2,
+    fill:`url(#${gid})`,stroke:'var(--outline)','stroke-width':2,
+    transform:`rotate(${angle} ${cx} ${cy})`});
+  parent.appendChild(rect);
+}
+function drawPlate(parent,cx,cy,dir){
+  const vertical = dir[0]===0;
+  const w = vertical? PLATE_LEN : PLATE_THICK;
+  const h = vertical? PLATE_THICK : PLATE_LEN;
+  gradId++; const gid='p'+gradId;
+  const defs=scene.querySelector('defs');
+  const grad=el('linearGradient',{id:gid,x1:'0',y1:'0',x2: vertical?'1':'0', y2: vertical?'0':'1'});
+  grad.appendChild(el('stop',{offset:'0%','stop-color':'#fbeaf3'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color':'#d8b7c8'}));
+  defs.appendChild(grad);
+  parent.appendChild(el('rect',{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:2,fill:`url(#${gid})`,stroke:'var(--outline)','stroke-width':2}));
+}
+function drawBox(parent,cx,cy,w0,h0,dir,active,lines){
+  const vertical = dir[0]===0;
+  const w = vertical? h0:w0, h = vertical? w0:h0;
+  gradId++; const gid='b'+gradId;
+  const defs=scene.querySelector('defs');
+  const grad=el('linearGradient',{id:gid,x1:'0',y1:'0',x2:'0',y2:'1'});
+  grad.appendChild(el('stop',{offset:'0%','stop-color': active? '#f1f2f5':'#eceef2'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color': active? '#c7cbd4':'#dfe2e8'}));
+  defs.appendChild(grad);
+  parent.appendChild(el('rect',{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:8,fill:`url(#${gid})`,stroke:'var(--outline)','stroke-width':2.2}));
+  const totalH=lines.length*17;
+  lines.forEach((ln,i)=>{
+    const t=el('text',{x:cx,y:cy-totalH/2+13+i*17,'text-anchor':'middle','font-family':'system-ui, -apple-system, Segoe UI, Arial, sans-serif','font-weight':'800','font-size':13.5,fill: active?'#181b26':'#9aa1b4'});
+    t.textContent=ln; parent.appendChild(t);
+  });
+}
+function drawLabel(parent,cx,cy,text,dir){
+  // dir: 'up'(기본) | 'right' | 'left' — 도형과의 간섭을 피하기 위한 배치 방향
+  dir=dir||'up';
+  let x=cx,y=cy,anchor='middle';
+  if(dir==='up'){ y=cy-24; }
+  else if(dir==='right'){ x=cx+30; y=cy+4; anchor='start'; }
+  else if(dir==='left'){ x=cx-30; y=cy+4; anchor='end'; }
+  const t=el('text',{x,y,'text-anchor':anchor,'font-family':'system-ui, -apple-system, Segoe UI, Arial, sans-serif','font-weight':'800','font-size':13.5,fill:'#374151'});
+  t.textContent=text; parent.appendChild(t);
+}
+
+function makeMiniProfileImage(size){
+  const oversample=3;
+  const px=size*oversample;
+  const c=document.createElement('canvas'); c.width=px; c.height=px;
+  const ctx=c.getContext('2d');
+  const wUm=w_at_z_m(hp_mm())*1e6;
+  const viewHalf=Math.max(20,wUm*2.6);
+  const scaleF=intensityScaleFactor();
+  const img=ctx.createImageData(px,px);
+  for(let py=0;py<px;py++){
+    for(let pxi=0;pxi<px;pxi++){
+      const xUm=(pxi/px-0.5)*2*viewHalf, yUm=(py/px-0.5)*2*viewHalf;
+      const r2=xUm*xUm+yUm*yUm;
+      const inten=Math.exp(-2*r2/(wUm*wUm))*scaleF;
+      const [r,g,b]=cmapRGB(inten);
+      const idx=(py*px+pxi)*4;
+      img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  const niceVals=[1,2,5,10,20,50,100,200,500,1000,2000];
+  let barUm=niceVals[0];
+  for(const v of niceVals){ if(v<=viewHalf*2*0.32) barUm=v; }
+  const barPx=(barUm/(2*viewHalf))*px;
+  const bx=px*0.08, by=px*0.92;
+  ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(2,px*0.012);
+  ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+barPx,by); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font=`${Math.round(px*0.06)}px system-ui, -apple-system, Segoe UI, Arial, sans-serif`;
+  ctx.fillText(barUm+' μm', bx, by-px*0.02);
+  return c.toDataURL('image/png');
+}
+
+function buildScene(){
+  scene.innerHTML='';
+  const defs=el('defs',{});
+  defs.innerHTML=`<filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="stageGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c3c8d2"/><stop offset="100%" stop-color="#6b7280"/></linearGradient>`;
+  scene.appendChild(defs);
+
+  const pos=computeLayout();
+  const col=currentColor();
+  const scannerW=124, scannerH=76;
+  const scannerBottom={x:pos.scanner.x, y:pos.scanner.y+scannerH/2};
+
+  const scanScale=0.55; // px per mm, scanner-stage 축과 focal length 표시에 공통 사용
+  const focalY=scannerBottom.y+FOCAL_LENGTH_MM*scanScale;
+  const stageX=scannerBottom.x;
+  const stageY=scannerBottom.y+state.scanStageDist*scanScale;
+  const stageW=210, stageH=20;
+  const w_um=w_at_z_m(hp_mm())*1e6;
+  const spotHalfPx=Math.max(3,Math.min(34,3+(w_um/state.w0CalUm-1)*7));
+
+  // bounds
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  Object.keys(pos).forEach(k=>{
+    minX=Math.min(minX,pos[k].x-70); maxX=Math.max(maxX,pos[k].x+70);
+    minY=Math.min(minY,pos[k].y-70); maxY=Math.max(maxY,pos[k].y+70);
+  });
+  minX=Math.min(minX, stageX-stageW/2-500);
+  maxX=Math.max(maxX, stageX+stageW/2+120);
+  maxY=Math.max(maxY, stageY+stageH+50, focalY+150);
+  const pad=20;
+  scene.setAttribute('viewBox',`${minX-pad} ${minY-pad} ${maxX-minX+pad*2} ${maxY-minY+pad*2}`);
+  scene.setAttribute('preserveAspectRatio','xMidYMid meet');
+
+  // 빔 경로: 항상 laser→atten→shutter→m1→m2→bet→m3→m4→m5→wp→scanner 전체를 고정으로 그림 — on/off는 아이콘만 빼고 경로선은 항상 유지
+  const chainIds=['laser','atten','shutter','m1','m2','bet','m3','m4','m5','waveplate','scanner'];
+  const chainPts=chainIds.map(id=> id==='scanner'? scannerBottom : pos[id]);
+  for(let i=0;i<chainIds.length-1;i++){
+    const a=chainPts[i], b=chainPts[i+1];
+    const cumT=cumulativeAt(chainIds[i]);
+    const op=0.6+0.35*cumT;
+    scene.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y, stroke:col,'stroke-width':7,'stroke-linecap':'round', opacity:op}));
+  }
+
+  // Scanner → Stage: converge → F → diverge (image3 스타일), 항상 전체 원뿔 표시
+  const ap=30;
+  const coneLen=focalY-scannerBottom.y;
+  const endY=Math.max(stageY, focalY+coneLen*0.55);
+  const ap2=ap*(endY-focalY)/coneLen;
+  scene.appendChild(el('path',{d:`M ${scannerBottom.x-ap},${scannerBottom.y} L ${scannerBottom.x+ap},${scannerBottom.y} L ${scannerBottom.x},${focalY} Z`, fill:col, opacity:0.16}));
+  scene.appendChild(el('path',{d:`M ${scannerBottom.x},${focalY} L ${scannerBottom.x-ap2},${endY} L ${scannerBottom.x+ap2},${endY} Z`, fill:col, opacity:0.16}));
+  scene.appendChild(el('line',{x1:scannerBottom.x-70,x2:scannerBottom.x+70,y1:focalY,y2:focalY, stroke:'#c3c8d4','stroke-width':1.5,'stroke-dasharray':'5 5'}));
+  scene.appendChild(el('circle',{cx:scannerBottom.x,cy:focalY,r:4,fill:'#111'}));
+  // F 라벨: stage 폭 바깥쪽 고정 위치라 stage가 움직여도 절대 안 겹침
+  const fLbl=el('text',{x:stageX+stageW/2+26,y:focalY+6,fill:'#374151','font-size':13.5,'font-weight':'800','font-family':'system-ui, -apple-system, Segoe UI, Arial, sans-serif'});
+  fLbl.textContent='F (focus)'; scene.appendChild(fLbl);
+
+  // laser (fixed anchor, drawn as box)
+  drawBox(scene,pos.laser.x,pos.laser.y,100,54,[1,0],true,['LASER']);
+
+  // 컴포넌트들 (on/off는 아이콘 표시 여부만 결정, 위치/경로는 고정)
+  ORDER.forEach(id=>{
+    const active=state.active[id];
+    const def=COMPONENT_DEFS[id];
+    const p=pos[id], dir=p._dir;
+    if(!active) return;
+    if(def.shape==='mirror'){
+      drawMirror(scene,p.x,p.y,MIRROR_TURN[id].angle);
+      const dir2 = id==='m2'? 'right' : (id==='m4'? 'left' : 'up');
+      drawLabel(scene,p.x,p.y,id.toUpperCase(),dir2);
+    } else if(def.shape==='plate'){
+      drawPlate(scene,p.x,p.y,dir);
+    } else {
+      drawBox(scene,p.x,p.y,def.w,def.h,dir,true,def.lines);
+      let extra='';
+      if(extra) drawLabel(scene,p.x,p.y,extra);
+    }
+  });
+
+  // scanner (fixed) — "(dummy)" 라인/부가 텍스트 제거
+  drawBox(scene,pos.scanner.x,pos.scanner.y,scannerW,scannerH,pos.scanner._dir,true,['SCANNER']);
+
+  // stage (plain rectangle, no legs) — 라벨은 항상 도형 우측, 도형과 같이 움직임
+  scene.appendChild(el('rect',{x:stageX-stageW/2,y:stageY,width:stageW,height:stageH,rx:6,fill:'url(#stageGrad)',stroke:'var(--outline)','stroke-width':2.4}));
+  const stLbl=el('text',{x:stageX,y:stageY+stageH/2+5,'text-anchor':'middle','font-family':'system-ui, -apple-system, Segoe UI, Arial, sans-serif','font-weight':'800','font-size':12,fill:'#1f2430'});
+  stLbl.textContent='STAGE'; scene.appendChild(stLbl);
+
+  // 미니 beam profile (정사각형, 확대, 좌측 하단 고정 위치)
+  const thumbSize=260;
+  const thumbX=minX+30, thumbY=maxY-thumbSize-30;
+  scene.appendChild(el('rect',{x:thumbX-5,y:thumbY-5,width:thumbSize+10,height:thumbSize+10,rx:7,fill:'#fff',stroke:'#000','stroke-width':2.5}));
+  const img=el('image',{x:thumbX,y:thumbY,width:thumbSize,height:thumbSize});
+  img.setAttributeNS('http://www.w3.org/1999/xlink','href', makeMiniProfileImage(thumbSize));
+  scene.appendChild(img);
+  const thumbLbl=el('text',{x:thumbX+thumbSize/2,y:thumbY+thumbSize+22,'text-anchor':'middle','font-size':13.5,fill:'#6b7280','font-family':'system-ui, -apple-system, Segoe UI, Arial, sans-serif','font-weight':'700'});
+  thumbLbl.textContent='Beam Profile @ Stage'; scene.appendChild(thumbLbl);
+
+  // pulse indicator (붉은 테두리)
+  scene._chainPts=chainPts;
+  scene._hgEnd={x:stageX,y:stageY+2};
+  const pulse=el('circle',{id:'beamPulseIndicator', r:5.6, fill:'#ffffff', stroke:'#dc2626','stroke-width':2.24, filter:'url(#glow)'});
+  scene.appendChild(pulse);
+}
+
+/* ===================== 애니메이션 ===================== */
+let animPlaying=true;
+function getFullPath(){
+  const pts=scene._chainPts.slice().map(p=>[p.x,p.y]);
+  pts.push([scene._hgEnd.x, scene._hgEnd.y]);
+  return pts;
+}
+function segLen(a,b){ return Math.hypot(b[0]-a[0],b[1]-a[1]); }
+function animate(ts){
+  if(!scene._chainPts || !animPlaying){ requestAnimationFrame(animate); return; }
+  const pts=getFullPath();
+  let total=0; const lens=[];
+  for(let i=0;i<pts.length-1;i++){ const l=segLen(pts[i],pts[i+1]); lens.push(l); total+=l; }
+  const speed=230, dur=Math.max(total/speed,0.6);
+  const t=((ts/1000)%dur)/dur;
+  let target=t*total, seg=0;
+  while(seg<lens.length && target>lens[seg]){ target-=lens[seg]; seg++; }
+  if(seg>=lens.length) seg=lens.length-1;
+  const a=pts[seg], b=pts[seg+1]||pts[seg];
+  const st=lens[seg]?target/lens[seg]:0;
+  const x=a[0]+(b[0]-a[0])*st, y=a[1]+(b[1]-a[1])*st;
+  const dotEl=document.getElementById('beamPulseIndicator');
+  if(dotEl){ dotEl.setAttribute('cx',x); dotEl.setAttribute('cy',y); }
+  requestAnimationFrame(animate);
+}
+
+/* ===================== Beam Profile 패널 ===================== */
+function autoFitZoom(){ return Math.max(30, w_at_z_m(hp_mm())*1e6*3.2); }
+let profileRegions={};
+function downloadProfileRegion(key, filename){
+  const region=profileRegions[key];
+  if(!region) return;
+  const canvas=document.getElementById('profileCanvas');
+  const temp=document.createElement('canvas');
+  temp.width=Math.round(region.w); temp.height=Math.round(region.h);
+  const tctx=temp.getContext('2d');
+  tctx.fillStyle='#ffffff'; tctx.fillRect(0,0,temp.width,temp.height);
+  tctx.drawImage(canvas, region.x, region.y, region.w, region.h, 0,0, region.w, region.h);
+  temp.toBlob(b=>saveFile(filename+'.png', b), 'image/png');
+}
+function fitCanvasToDisplay(canvas){
+  const cssW=canvas.clientWidth, cssH=canvas.clientHeight;
+  if(cssW<=0||cssH<=0) return;
+  const dpr=Math.max(Math.min(window.devicePixelRatio||1, 2.5), 1040/cssW); // keep the drawing at its designed size (~1040 px) and scale it into the pane
+  const targetW=Math.round(cssW*dpr), targetH=Math.round(cssH*dpr);
+  if(canvas.width!==targetW || canvas.height!==targetH){ canvas.width=targetW; canvas.height=targetH; }
+}
+function intensityScaleFactor(){
+  if(state.profileNormalize) return 1;
+  const w0=w0_m(), wz=w_at_z_m(hp_mm());
+  return (w0/wz)*(w0/wz); // 초점 대비 실제 peak intensity 비율 (defocus되면 1보다 작아짐)
+}
+function renderProfile(){
+  const canvas=document.getElementById('profileCanvas');
+  fitCanvasToDisplay(canvas);
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const wUm=w_at_z_m(hp_mm())*1e6;
+  const scaleF=intensityScaleFactor();
+  if(state.profileZoomUm===null) state.profileZoomUm=autoFitZoom();
+  const viewHalf=state.profileZoomUm;
+  document.getElementById('zoom-label').textContent=`±${viewHalf.toFixed(0)} μm`;
+  ctx.clearRect(0,0,W,H);
+
+  // ---- 레이아웃: [heatmap 또는 3D][colorbar]   [X-profile]
+  //                                              [Y-profile]
+  // ---- 레이아웃: [colorbar][heatmap 또는 3D]   [X-profile]
+  //                                              [Y-profile]
+  const pad=22;
+  const size=H-pad*2;               // 정사각형 윈도우 — 우측 X/Y profile 합친 높이와 동일하게 꽉 채움. 3D 토글은 이 영역에만 적용
+  const cbW=20, cbX=pad;
+  const hx=cbX+cbW+52, hy=pad;
+  const rightX=hx+size+50, rightW=W-rightX-pad;
+  const gap=24;
+  const rightH=(H-pad*2-gap)/2;
+
+  if(!state.profile3D){
+    // heatmap (top view)
+    const imgSize=Math.round(size);
+    const img=ctx.createImageData(imgSize,imgSize);
+    for(let py=0;py<imgSize;py++){
+      for(let px=0;px<imgSize;px++){
+        const xUm=(px/imgSize-0.5)*2*viewHalf, yUm=(py/imgSize-0.5)*2*viewHalf;
+        const r2=xUm*xUm+yUm*yUm;
+        const inten=Math.exp(-2*r2/(wUm*wUm))*scaleF;
+        const [r,g,b]=cmapRGB(inten);
+        const idx=(py*imgSize+px)*4;
+        img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+      }
+    }
+    ctx.putImageData(img,hx,hy);
+    ctx.strokeStyle='#333844'; ctx.lineWidth=1.5; ctx.strokeRect(hx,hy,size,size);
+
+    if(state.profileGuide){
+      ctx.setLineDash([7,6]);
+      ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(hx,hy+size/2); ctx.lineTo(hx+size,hy+size/2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hx+size/2,hy); ctx.lineTo(hx+size/2,hy+size); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    const niceVals=[1,2,5,10,20,50,100,200,500,1000,2000];
+    let barUm=niceVals[0];
+    for(const v of niceVals){ if(v<=viewHalf*2*0.32) barUm=v; }
+    const barPx=(barUm/(2*viewHalf))*size;
+    const bx=hx+16, by=hy+size-20;
+    ctx.strokeStyle='#fff'; ctx.lineWidth=3.5;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+barPx,by); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font='700 20px system-ui, -apple-system, Segoe UI, Arial, sans-serif';
+    ctx.fillText(barUm+' μm', bx, by-10);
+  } else {
+    // isometric 3D surface — 정사각형 윈도우 안에만 그림
+    const N=36, originX=hx+size/2, originY=hy+size*0.86, baseSize=size*0.4, heightScale=size*0.32;
+    const pts=[];
+    for(let iy=0;iy<=N;iy++){
+      const row=[];
+      for(let ix=0;ix<=N;ix++){
+        const xUm=-viewHalf+(2*viewHalf)*(ix/N), yUm=-viewHalf+(2*viewHalf)*(iy/N);
+        const r2=xUm*xUm+yUm*yUm;
+        const inten=Math.exp(-2*r2/(wUm*wUm))*scaleF;
+        const gxN=xUm/viewHalf, gyN=yUm/viewHalf;
+        const isoX=originX+(gxN-gyN)*Math.cos(Math.PI/6)*baseSize;
+        const isoY=originY+(gxN+gyN)*Math.sin(Math.PI/6)*baseSize - inten*heightScale;
+        row.push({x:isoX,y:isoY,inten});
+      }
+      pts.push(row);
+    }
+    ctx.save();
+    ctx.strokeStyle='#333844'; ctx.lineWidth=1.5; ctx.strokeRect(hx,hy,size,size);
+    ctx.lineWidth=1;
+    for(let iy=0;iy<=N;iy++){
+      for(let ix=0;ix<=N;ix++){
+        const p=pts[iy][ix];
+        if(ix<N){ const q=pts[iy][ix+1]; const [r,g,b]=cmapRGB((p.inten+q.inten)/2); ctx.strokeStyle=`rgb(${r},${g},${b})`; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke(); }
+        if(iy<N){ const q=pts[iy+1][ix]; const [r,g,b]=cmapRGB((p.inten+q.inten)/2); ctx.strokeStyle=`rgb(${r},${g},${b})`; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke(); }
+      }
+    }
+    ctx.restore();
+  }
+
+  // colorbar (항상 표시)
+  for(let py=0;py<size;py++){
+    const t=1-py/size;
+    const [r,g,b]=cmapRGB(t);
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.fillRect(cbX,hy+py,cbW,1);
+  }
+  ctx.strokeStyle='#333844'; ctx.lineWidth=1.5; ctx.strokeRect(cbX,hy,cbW,size);
+  ctx.fillStyle='#374151'; ctx.font='700 17px system-ui, -apple-system, Segoe UI, Arial, sans-serif'; ctx.textAlign='left';
+  ctx.fillText('1.0', cbX+cbW+6, hy+14);
+  ctx.fillText('0.0', cbX+cbW+6, hy+size);
+  ctx.save(); ctx.translate(cbX+cbW+26, hy+size/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center'; ctx.font='700 19px system-ui, -apple-system, Segoe UI, Arial, sans-serif';
+  ctx.fillText(state.profileNormalize? 'Normalized Intensity' : 'Relative Intensity (vs. focus peak)', 0, 0); ctx.restore();
+
+  // X / Y cross-section 패널 (항상 표시, 3D 토글 영향 없음)
+  drawColoredCrossSection(ctx, rightX, pad, rightW, rightH, wUm, viewHalf, scaleF, 'X', 'x');
+  drawColoredCrossSection(ctx, rightX, pad+rightH+gap, rightW, rightH, wUm, viewHalf, scaleF, 'Y', 'y');
+
+  profileRegions = {
+    beam_profile:{x:cbX-2,y:hy-2,w:(hx+size-cbX)+4,h:size+4},
+    x_profile:{x:rightX,y:pad,w:rightW,h:rightH},
+    y_profile:{x:rightX,y:pad+rightH+gap,w:rightW,h:rightH},
+  };
+}
+function drawColoredCrossSection(ctx, ox, oy, w, h, wUm, viewHalf, scaleF, axisLabel, axisKey){
+  const padL=8,padR=8,padT=28,padB=34;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  ctx.strokeStyle='#333844'; ctx.lineWidth=1;
+  ctx.strokeRect(ox+padL,oy+padT,plotW,plotH);
+  const N=160;
+  let prevX=null, prevY=null, prevInten=null;
+  ctx.lineWidth=3;
+  for(let i=0;i<=N;i++){
+    const u=-viewHalf+(2*viewHalf)*(i/N);
+    const inten=Math.exp(-2*(u*u)/(wUm*wUm))*scaleF;
+    const px=ox+padL+plotW*(i/N);
+    const py=oy+padT+plotH*(1-inten);
+    if(prevX!==null){
+      const [r,g,b]=cmapRGB((inten+prevInten)/2);
+      ctx.strokeStyle=`rgb(${r},${g},${b})`;
+      ctx.beginPath(); ctx.moveTo(prevX,prevY); ctx.lineTo(px,py); ctx.stroke();
+    }
+    prevX=px; prevY=py; prevInten=inten;
+  }
+  // x축 눈금 (위치, μm 단위)
+  const niceStep = (()=>{ const cands=[10,20,25,50,100,150,200,250,500,1000]; for(const c of cands){ if((2*viewHalf)/c<=6) return c; } return 1000; })();
+  ctx.strokeStyle='#9aa1b4'; ctx.fillStyle='#6b7280'; ctx.font='600 13px system-ui, -apple-system, Segoe UI, Arial, sans-serif'; ctx.textAlign='center'; ctx.lineWidth=1;
+  for(let v=Math.ceil(-viewHalf/niceStep)*niceStep; v<=viewHalf; v+=niceStep){
+    const tx=ox+padL+plotW*((v+viewHalf)/(2*viewHalf));
+    ctx.beginPath(); ctx.moveTo(tx,oy+padT+plotH); ctx.lineTo(tx,oy+padT+plotH+5); ctx.stroke();
+    ctx.fillText(v.toFixed(0), tx, oy+padT+plotH+20);
+  }
+  ctx.font='600 12px system-ui, -apple-system, Segoe UI, Arial, sans-serif';
+  ctx.fillText(axisKey+' position (μm)', ox+padL+plotW/2, oy+padT+plotH+33);
+  ctx.fillStyle='#374151'; ctx.font='700 20px system-ui, -apple-system, Segoe UI, Arial, sans-serif'; ctx.textAlign='left';
+  ctx.fillText(`${axisLabel}-profile  (${axisKey}: ±${viewHalf.toFixed(0)} μm)`, ox+padL, oy+padT-10);
+}
+
+/* ===================== Component Order 리스트 (고정 형태, on/off만) ===================== */
+function renderComponentList(){ renderTree(); }
+function updateComponentValueStates(){
+  const betOn=state.active.bet;
+  ['field-betM','field-betT'].forEach(fid=>{
+    const f=document.getElementById(fid);
+    f.classList.toggle('dis', !betOn);
+    f.querySelector('input').disabled = !betOn;
+  });
+}
+
+/* ===================== 거리 컨트롤 ===================== */
+function bindDual(sliderId,numberId,{min,max,sliderStep,numStep,get,set,onChange}){
+  const cb = onChange || render;
+  const s=document.getElementById(sliderId), n=document.getElementById(numberId);
+  s.min=min; s.max=max; s.step=sliderStep; n.min=min; n.max=max; n.step=numStep;
+  s.value=get(); n.value=get();
+  s.addEventListener('input', ()=>{ set(parseFloat(s.value)); n.value=s.value; cb(); });
+  n.addEventListener('input', ()=>{
+    let v=parseFloat(n.value); if(isNaN(v)) return;
+    v=Math.min(max,Math.max(min,v)); set(v); s.value=v; cb();
+  });
+}
+function bindStepButtons(){
+  document.querySelectorAll('.stepbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target=btn.dataset.target, delta=parseFloat(btn.dataset.step);
+      const s=document.getElementById(target==='scanstage'? 'z-slider':`ds-${target}`);
+      const n=document.getElementById(target==='scanstage'? 'z-num':`dn-${target}`);
+      let v=parseFloat(n.value)+delta;
+      v=Math.min(parseFloat(n.max),Math.max(parseFloat(n.min),v));
+      n.value=v; s.value=v;
+      n.dispatchEvent(new Event('input'));
+    });
+  });
+}
+const DIST_IDS=['atten','shutter','m1','m2','bet','m3','m4','m5','waveplate'];
+const DIST_LABELS={
+  atten:'Laser-Atten.', shutter:'Atten.-Shutter', m1:'Shutter-M1', m2:'M1-M2',
+  bet:'M2-BET', m3:'BET-M3', m4:'M3-M4', m5:'M4-M5', waveplate:'M5-Scanner'
+};
+const DEFAULT_DIST={atten:350, shutter:210, m1:330, m2:350, bet:380, m3:380, m4:300, m5:420, waveplate:270};
+const DEFAULT_SCAN_STAGE=360;
+function buildDistanceControls(){
+  const wrap=document.getElementById('distance-controls');
+  wrap.innerHTML='';
+  DIST_IDS.forEach(id=>{
+    const box=document.createElement('div'); box.className='dual'; box.id='distctl-'+id;
+    box.innerHTML=`<div class="lbl" id="distlbl-${id}">${DIST_LABELS[id]}</div>
+      <div class="row">
+        <button class="stepbtn" data-step="-10" data-target="${id}">−</button>
+        <input type="range" id="ds-${id}">
+        <button class="stepbtn" data-step="10" data-target="${id}">+</button>
+        <input type="number" id="dn-${id}">
+      </div>`;
+    wrap.appendChild(box);
+    bindDual(`ds-${id}`,`dn-${id}`,{ min:30,max:800,sliderStep:10,numStep:1, get:()=>state.dist[id], set:v=>state.dist[id]=v, onChange:buildScene });
+  });
+  updateDistanceLabels();
+}
+function resetDistanceDefaults(){
+  DIST_IDS.forEach(id=>{ state.dist[id]=DEFAULT_DIST[id]; });
+  state.scanStageDist=DEFAULT_SCAN_STAGE;
+  DIST_IDS.forEach(id=>{
+    document.getElementById(`ds-${id}`).value=state.dist[id];
+    document.getElementById(`dn-${id}`).value=state.dist[id];
+  });
+  document.getElementById('z-slider').value=state.scanStageDist;
+  document.getElementById('z-num').value=state.scanStageDist;
+  render();
+}
+function updateDistanceLabels(){
+  const betOn=state.active.bet;
+  document.getElementById('distlbl-bet').textContent = betOn? 'M2-BET' : 'M2-M3';
+  const m3ctl=document.getElementById('distctl-m3');
+  m3ctl.classList.toggle('dis', !betOn);
+  document.getElementById('ds-m3').disabled = !betOn;
+  document.getElementById('dn-m3').disabled = !betOn;
+}
+
+/* ===================== UI ===================== */
+function fmt(n,d){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function renderLoss(){
+  const rows=lossChain();
+  document.getElementById('loss-list').innerHTML = rows.map(r=>`<tr class="${r.final?'final':''}"><td class="k" style="cursor:default">${r.label}</td><td class="v">${r.T===null?'':'<span style="color:var(--muted)">×'+r.T.toFixed(3)+'</span>&nbsp;&nbsp;'}${r.P.toFixed(2)} W</td></tr>`).join('');
+}
+function renderSummaryTable(){
+  const w_um=w_at_z_m(hp_mm())*1e6;
+  const rows=[
+    ['λ / Power', `${state.wavelength}nm / ${state.pavg}W`, 'Laser wavelength and average power set in Laser Source.'],
+    ['Rep Rate', `${state.reprate} kHz`, 'Pulse repetition rate set in Laser Source.'],
+    ['Total T', `${(transmission()*100).toFixed(1)}%`, 'Product of every active component\'s transmission (Atten. × Shutter × mirrors × BET × Waveplate).'],
+    ['Power @ Stage', `${Pstage_W().toFixed(2)} W`, 'P_avg × Total T — power remaining after all losses, right before the stage.'],
+    ['Pulse Energy', `${(Epulse_J()*1e6).toFixed(2)} µJ`, 'Power @ Stage ÷ Rep Rate — energy delivered per pulse.'],
+    ['Spot ⌀', `${(w_um*2).toFixed(1)} μm`, '1/e² beam diameter at the stage: 2·w0\'·sqrt(1+(h_p/z_R)²). Grows as h_p moves away from 0.'],
+    ['Scanner–Stage', `${state.scanStageDist.toFixed(1)} mm`, 'The physical distance you set with the Scanner–Stage Dist. control.'],
+    ['h<sub>p</sub> (defocus)', `${hp_mm().toFixed(2)} mm`, 'h_p = Scanner–Stage distance − focal length (255mm). h_p = 0 means the stage sits exactly at the focal point F; positive/negative means the stage is past/before F.'],
+    ['Fluence', `${fluence_mJcm2(hp_mm()).toFixed(1)} mJ/cm²`, 'Peak fluence at the stage: 2 × Pulse Energy ÷ (π × spot radius²). Falls off fast as the spot grows with defocus.'],
+  ];
+  document.getElementById('summary-table').innerHTML = rows.map(r=>`<tr><td class="k" title="${r[2]}">${r[0]}</td><td class="v">${r[1]}</td></tr>`).join('');
+}
+function renderStageInfoTable(){
+  const zr_mm=zR_m()*1000, dof_mm=2*zr_mm, w0_um=w0_m()*1e6;
+  const gouy=gouyPhaseDeg(hp_mm());
+  const Rz=wavefrontR_mm(hp_mm());
+  const Rz_label = !isFinite(Rz) ? '∞ (flat, at focus)' : `${Rz.toFixed(1)} mm`;
+  const rows=[
+    ['Focal length f', FOCAL_LENGTH_MM+' mm', 'Fixed F-theta lens focal length from the paper calibration (constant, not adjustable).'],
+    ['Rayleigh range z<sub>R</sub>', zr_mm.toFixed(2)+' mm', 'z_R = π·w0\'² / (λ·M²). Distance from focus over which the beam stays roughly collimated.'],
+    ['DOF (2·z<sub>R</sub>)', dof_mm.toFixed(2)+' mm', 'Depth of focus = 2 × z_R, the usable h_p range around focus for a near-minimum spot.'],
+    ['Exact Focus Distance', FOCAL_LENGTH_MM+' mm (h<sub>p</sub>=0)', 'Set Scanner–Stage Dist. to this value (or click the &quot;Find Focus&quot; button) to put the stage exactly at F.'],
+    ['Focus ⌀ (2w₀)', (w0_um*2).toFixed(1)+' μm', 'Smallest possible spot diameter, achieved only when h_p = 0. Driven by the "Measured Focus ⌀" you entered in Laser Source.'],
+    ['Theoretical Focus ⌀ (diffraction)', theoreticalFocusDia_um().toFixed(1)+' μm', 'Cross-check only, from Edmund Optics beam expander theory: 4λM²f/(π·D_raw·M_BET). Diffraction term only — real spot can be larger due to spherical aberration (grows with beam³) which isn\'t modeled here. Compare to "Focus ⌀" above; large mismatches suggest re-measuring Raw Beam ⌀ or Measured Focus ⌀.'],
+    ['Focus Fluence', fluence_mJcm2(0).toFixed(1)+' mJ/cm²', 'Peak fluence if the stage were placed exactly at focus (h_p=0), using current power/loss settings.'],
+    ['Gouy Phase ζ(h<sub>p</sub>)', gouy.toFixed(2)+'°', 'ζ(z) = arctan(z/z_R) — the extra phase shift a Gaussian beam picks up passing through focus, a direct solution of the paraxial wave equation (not present in plain ray optics).'],
+    ['Wavefront R(h<sub>p</sub>)', Rz_label, 'Radius of curvature of the phase front at this h_p: R(z) = z·(1+(z_R/z)²). Flat (∞) exactly at focus, curved elsewhere — another wave-equation result, since a ray-optics spot has no phase front at all.'],
+    ['Output Polarization', outputPolarizationLabel(), 'Computed via Jones calculus: E_stage = J_WP · R(path rotation) · E_laser, with E_laser horizontal (manual-measured, >100:1). Reported as azimuth ψ / ellipticity χ of the polarization ellipse, not a single scalar angle guess.'],
+    ['Predicted LIPSS Orientation', predictedLIPSSOrientationLabel(), 'LIPSS ripples form perpendicular to the E-field direction (for near-linear polarization). Computed as azimuth ψ + 90°. Not well-defined for circular/strongly elliptical states.'],
+    ['Divergence θ (far-field)', farFieldDivergence_mrad().toFixed(2)+' mrad', 'θ = M²λ/(π·w0\') — half-angle beam spread far from focus, a direct paraxial-wave-equation result (diffraction, not a ray-optics quantity).'],
+    ['Equivalent NA', numericalApertureEq().toFixed(3), 'NA ≈ w0\'/f (small-angle). Handy for comparing this focusing condition to a lens spec sheet.'],
+  ];
+  document.getElementById('stageinfo-table').innerHTML = rows.map(r=>`<tr><td class="k" title="${r[2]}">${r[0]}</td><td class="v">${r[1]}</td></tr>`).join('');
+}
+function updateOutputs(){
+  document.getElementById('w0-derived').textContent=`w₀' = ${fmt(w0_m()*1e6,1)} μm (after λ scaling & BET)`;
+
+  const tv=parseFloat(document.getElementById('target-f').value);
+  const tTable=document.getElementById('target-f-table'), tStatus=document.getElementById('target-f-status');
+  if(!isNaN(tv) && tv>0){
+    const req=requiredZ_mm(tv);
+    if(req===null){
+      tTable.style.display='none';
+      tStatus.className='target-status bad';
+      tStatus.textContent=`Not reachable — max at focus is ${fmt(fluence_mJcm2(0),1)} mJ/cm².`;
+    } else {
+      tTable.style.display=''; tStatus.className='target-status'; tStatus.textContent='';
+      tTable.querySelector('tbody').innerHTML=`
+        <tr><td class="k">Distance (near F)</td><td class="v">${fmt(FOCAL_LENGTH_MM-req,1)} mm</td></tr>
+        <tr><td class="k">Distance (far F)</td><td class="v">${fmt(FOCAL_LENGTH_MM+req,1)} mm</td></tr>
+        <tr><td class="k">h<sub>p</sub></td><td class="v">±${fmt(req,2)} mm</td></tr>`;
+    }
+  } else {
+    tTable.style.display='none';
+    tStatus.className='target-status'; tStatus.textContent='Enter a value in Settings ▸ Targets.';
+  }
+
+  const tsv=parseFloat(document.getElementById('target-spot').value);
+  const sTable=document.getElementById('target-spot-table'), sStatus=document.getElementById('target-spot-status');
+  if(!isNaN(tsv) && tsv>0){
+    const req=requiredZ_from_spot_um(tsv);
+    if(req===null){
+      sTable.style.display='none';
+      sStatus.className='target-status bad';
+      sStatus.textContent=`Not reachable — min spot at focus is ${fmt(w0_m()*1e6*2,1)} μm.`;
+    } else {
+      sTable.style.display=''; sStatus.className='target-status'; sStatus.textContent='';
+      sTable.querySelector('tbody').innerHTML=`
+        <tr><td class="k">Distance (near F)</td><td class="v">${fmt(FOCAL_LENGTH_MM-req,1)} mm</td></tr>
+        <tr><td class="k">Distance (far F)</td><td class="v">${fmt(FOCAL_LENGTH_MM+req,1)} mm</td></tr>
+        <tr><td class="k">h<sub>p</sub></td><td class="v">±${fmt(req,2)} mm</td></tr>`;
+    }
+  } else {
+    sTable.style.display='none';
+    sStatus.className='target-status'; sStatus.textContent='Enter a value in Settings ▸ Targets.';
+  }
+  renderLoss();
+}
+function render(){ buildScene(); updateOutputs(); renderProfile(); renderSummaryTable(); renderStageInfoTable(); updateStatus(); setDirty(false); }
+
+document.getElementById('wavelength').addEventListener('change', e=>{ state.wavelength=parseInt(e.target.value); state.profileZoomUm=null; });
+document.getElementById('pavg').addEventListener('input', e=>{ state.pavg=parseFloat(e.target.value)||0; });
+document.getElementById('reprate').addEventListener('input', e=>{ state.reprate=parseFloat(e.target.value)||1; });
+document.getElementById('pulsewidth').addEventListener('input', e=>{ state.pulsewidth=parseFloat(e.target.value)||1; });
+document.getElementById('msq').addEventListener('input', e=>{ state.mSquared=parseFloat(e.target.value)||1.2; });
+document.getElementById('focusDiaInput').addEventListener('input', e=>{
+  const v=parseFloat(e.target.value);
+  state.w0CalUm = (isNaN(v)||v<=0) ? state.w0CalUm : v/2;
+  state.profileZoomUm=null;
+});
+document.getElementById('rawBeamDia').addEventListener('input', e=>{ state.rawBeamDiaMm=parseFloat(e.target.value)||8; });
+document.getElementById('divergence').addEventListener('input', e=>{ state.divergenceMrad=parseFloat(e.target.value)||2; });
+document.getElementById('attT').addEventListener('input', e=>{ state.attT=parseFloat(e.target.value)||0; });
+document.getElementById('mirrorR').addEventListener('input', e=>{ state.mirrorR=parseFloat(e.target.value)||99; });
+document.getElementById('betM').addEventListener('input', e=>{ state.betM=parseFloat(e.target.value)||1; state.profileZoomUm=null; });
+document.getElementById('betT').addEventListener('input', e=>{ state.betT=parseFloat(e.target.value)||98; });
+document.getElementById('wpType').addEventListener('change', e=>{ state.wpType=e.target.value; });
+document.getElementById('wpAngle').addEventListener('input', e=>{ state.wpAngle=parseFloat(e.target.value)||0; });
+document.getElementById('wpT').addEventListener('input', e=>{ state.wpT=parseFloat(e.target.value)||99; });
+document.getElementById('pathPolRotation').addEventListener('input', e=>{ state.pathPolRotation=parseFloat(e.target.value); if(isNaN(state.pathPolRotation)) state.pathPolRotation=0; });
+document.querySelectorAll('.process-btn-icon').forEach(b=> b.addEventListener('click', render));
+
+bindDual('z-slider','z-num', {min:150,max:450,sliderStep:10,numStep:1, get:()=>state.scanStageDist, set:v=>state.scanStageDist=v});
+document.getElementById('reset-default').addEventListener('click', resetDistanceDefaults);
+document.getElementById('find-focus-btn').addEventListener('click', ()=>{
+  state.scanStageDist=FOCAL_LENGTH_MM;
+  document.getElementById('z-slider').value=FOCAL_LENGTH_MM;
+  document.getElementById('z-num').value=FOCAL_LENGTH_MM;
+  render();
+});
+document.getElementById('target-f').addEventListener('input', updateOutputs);
+document.getElementById('target-spot').addEventListener('input', updateOutputs);
+
+document.getElementById('zoom-in').addEventListener('click', ()=>{ state.profileZoomUm=Math.max(5, state.profileZoomUm/1.3); renderProfile(); });
+document.getElementById('zoom-out').addEventListener('click', ()=>{ state.profileZoomUm=Math.min(2000, state.profileZoomUm*1.3); renderProfile(); });
+document.getElementById('zoom-reset').addEventListener('click', ()=>{ state.profileZoomUm=autoFitZoom(); renderProfile(); });
+document.getElementById('colormap').addEventListener('change', e=>{ state.profileColormap=e.target.value; render(); });
+document.getElementById('profile-3d-toggle').addEventListener('click', function(){ this.classList.toggle('on'); state.profile3D=this.classList.contains('on'); renderProfile(); });
+document.getElementById('guide-toggle').addEventListener('click', function(){ this.classList.toggle('on'); state.profileGuide=this.classList.contains('on'); renderProfile(); });
+document.getElementById('normalize-toggle').addEventListener('click', function(){ this.classList.toggle('on'); state.profileNormalize=this.classList.contains('on'); renderProfile(); });
+document.getElementById('dl-beam').addEventListener('click', ()=> downloadProfileRegion('beam_profile','beam_profile'));
+document.getElementById('dl-x').addEventListener('click', ()=> downloadProfileRegion('x_profile','x_profile'));
+document.getElementById('dl-y').addEventListener('click', ()=> downloadProfileRegion('y_profile','y_profile'));
+
+document.getElementById('play-pause-btn').addEventListener('click', function(){
+  animPlaying=!animPlaying; setPulseUI(); msg(animPlaying? 'Beam pulse animation on' : 'Beam pulse animation paused');
+});
+
+/* ===================== Measurement Log (localStorage, no server) ===================== */
+const LOG_KEY = 'beampath_measurement_log_v1';
+function loadLog(){ try{ return JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); }catch(e){ return []; } }
+function saveLogArr(arr){ try{ localStorage.setItem(LOG_KEY, JSON.stringify(arr)); }catch(e){ notify('Could not save — browser storage may be full. Delete an old entry with an image, or export and clear first.'); } }
+function resizeImageFile(file, maxDim, cb){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w=img.width, h=img.height;
+      if(w>h){ if(w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; } }
+      else { if(h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; } }
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      cb(c.toDataURL('image/jpeg',0.7));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function renderLogList(){
+  const arr = loadLog();
+  const wrap = document.getElementById('log-list');
+  if(arr.length===0){ wrap.innerHTML = '<div class="note">No snapshots yet.</div>'; return; }
+  wrap.innerHTML = arr.slice().reverse().map((e,ri)=>{
+    const i = arr.length-1-ri; // 원본 배열 인덱스 (삭제용)
+    const img = e.image ? `<img src="${e.image}">` : '';
+    return `<div class="log-entry">${img}<div class="meta">
+      <div class="dt">${e.date}</div>
+      <div class="row">${e.wavelength}nm · ${e.pavg}W · ${e.reprate}kHz</div>
+      <div class="row">Focus ⌀ ${e.focusDia}μm · h_p ${e.hp}mm · BET ${e.betOn?e.betM+'×':'off'}</div>
+      ${e.note? `<div class="row">"${e.note}"</div>` : ''}
+    </div><button class="xbtn del" data-idx="${i}" title="Delete">✕</button></div>`;
+  }).join('');
+  wrap.querySelectorAll('.del').forEach(d=>{
+    d.addEventListener('click', ()=>{
+      const idx=parseInt(d.dataset.idx);
+      const a=loadLog(); a.splice(idx,1); saveLogArr(a); renderLogList();
+    });
+  });
+}
+function saveSnapshot(imageDataUrl){
+  const arr = loadLog();
+  arr.push({
+    date: new Date().toLocaleString(),
+    wavelength: state.wavelength, pavg: state.pavg, reprate: state.reprate,
+    focusDia: (state.w0CalUm*2).toFixed(1), hp: hp_mm().toFixed(1),
+    betOn: state.active.bet, betM: state.betM,
+    note: document.getElementById('log-note').value || '',
+    image: imageDataUrl || null,
+  });
+  saveLogArr(arr); msg('Snapshot saved to the Measurement Log');
+  document.getElementById('log-note').value='';
+  document.getElementById('log-image').value='';
+  renderLogList();
+}
+document.getElementById('log-save-btn').addEventListener('click', ()=>{
+  const fileInput = document.getElementById('log-image');
+  if(fileInput.files && fileInput.files[0]){
+    resizeImageFile(fileInput.files[0], 220, dataUrl=> saveSnapshot(dataUrl));
+  } else {
+    saveSnapshot(null);
+  }
+});
+document.getElementById('log-export-btn').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(loadLog(), null, 2)], {type:'application/json'});
+  saveFile('beampath_measurement_log.json', blob);
+});
+document.getElementById('log-import-btn').addEventListener('click', ()=> document.getElementById('log-import-file').click());
+document.getElementById('log-import-file').addEventListener('change', e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const imported=JSON.parse(reader.result);
+      if(!Array.isArray(imported)) throw new Error('bad format');
+      const existing=loadLog();
+      saveLogArr(existing.concat(imported));
+      renderLogList(); msg(`Imported ${imported.length} log entries`);
+    }catch(err){ notify('Could not read that file — expected a JSON log exported from this tool.'); }
+  };
+  reader.readAsText(file);
+});
+renderLogList();
+
+/* ===================== Grain Tracer-style shell: tree, views, panes, messages ===================== */
+const $id=id=>document.getElementById(id);
+function msg(text, warn){
+  const box=$id('msglog'); if(!box) return;
+  const d=document.createElement('div'); const t=new Date();
+  d.innerHTML=`<span class="t">${t.toTimeString().slice(0,8)}</span>`; const s=document.createElement('span'); s.textContent=text; if(warn) s.className='w'; d.appendChild(s);
+  box.prepend(d); $id('smsg').textContent=text;
+}
+function notify(text){ msg(text, true); }
+async function saveFile(name, data){
+  try{
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if(dl){ await dl.save({filename:name, data}); msg('Saved '+name); return; }
+  }catch(e){ if(e && e.code==='declined'){ msg('Save cancelled'); return; } }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(data instanceof Blob? data : new Blob([data])); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000); msg('Saved '+name);
+}
+function updateStatus(){
+  $id('sPow').textContent=`Power @ Stage ${Pstage_W().toFixed(2)} W`;
+  $id('sSpot').textContent=`Spot ⌀ ${(w_at_z_m(hp_mm())*2e6).toFixed(1)} μm`;
+  $id('sHp').textContent=`h_p ${hp_mm().toFixed(2)} mm`;
+  $id('sFlu').textContent=`Fluence ${fluence_mJcm2(hp_mm()).toFixed(1)} mJ/cm²`;
+}
+// dirty marker on Process until settings are applied
+let dirty=false;
+function setDirty(v){
+  dirty=v;
+  document.querySelectorAll('[data-act="process"] span, .process-btn-icon').forEach(el=>{
+    let dot=el.querySelector('.dirty-dot');
+    if(v && !dot){ dot=document.createElement('i'); dot.className='dirty-dot'; el.appendChild(dot); }
+    if(!v && dot) dot.remove();
+  });
+}
+$id('setPane').addEventListener('input', e=>{ if(e.target.closest('[data-sec="laser"],[data-sec="comp"]')) setDirty(true); });
+$id('setPane').addEventListener('change', e=>{ if(e.target.closest('[data-sec="laser"],[data-sec="comp"]')) setDirty(true); });
+
+/* ---------- workspace tree ---------- */
+const CMP_ICON={atten:'g-cmpbox',shutter:'g-cmpbox',m1:'g-mirror',m2:'g-mirror',bet:'g-cmpbox',m3:'g-mirror',m4:'g-mirror',m5:'g-mirror',waveplate:'g-plate'};
+const NODE={
+  setup:{t:'Optical Setup',ic:'g-optics',secs:['laser','comp','dist']},
+  laser:{t:'Laser Source',ic:'g-laser',secs:['laser']},
+  path:{t:'Beam Path',ic:'g-optlayout',secs:['comp']},
+  dist:{t:'Path Distance',ic:'g-ruler',secs:['dist'],view:'layout'},
+  results:{t:'Results',ic:'g-results',secs:['laser','comp','dist'],view:'results'},
+  summary:{t:'Summary',ic:'g-table',secs:['laser','comp','dist'],view:'results',card:'card-summary'},
+  stage:{t:'Stage Processing Info',ic:'g-calc',secs:['laser','comp','dist'],view:'results',card:'card-stage'},
+  loss:{t:'Loss Analysis',ic:'g-loss',secs:['comp'],view:'results',card:'card-loss'},
+  targets:{t:'Targets',ic:'g-target',secs:['targets'],view:'results',card:'card-targets'},
+  profile:{t:'Beam Profile',ic:'g-beam',secs:['laser','comp','dist'],view:'profile'},
+  layout:{t:'Optical Layout',ic:'g-optlayout',secs:['laser','comp','dist'],view:'layout'},
+  mlog:{t:'Measurement Log',ic:'g-log',secs:['log']},
+};
+const TREE=[['setup',[['laser'],['path','cmp'],['dist']]],['results',[['summary'],['stage'],['loss'],['targets'],['profile'],['layout']]],['mlog']];
+const openN={setup:true,path:true,results:true};
+let selNode='setup';
+const ic=id=>`<svg class="i"><use href="#${id}"/></svg>`;
+function row(key,depth,label,icon,{tw=false,extra='',cls='',num=''}={}){
+  const isOpen=openN[key];
+  const caret=tw?`<span class="tw" data-tw="${key}">${isOpen?'▾':'▸'}</span>`:'<span class="tw"></span>';
+  return `<li><div class="tn ${cls}" data-node="${key}" aria-selected="${selNode===key}" style="padding-left:${4+depth*16}px">${caret}${num}${ic(icon)}<span class="tl">${label}</span>${extra}</div>`;
+}
+function renderTree(){
+  const logN=(()=>{ try{ return loadLog().length; }catch(e){ return 0; } })();
+  const h=[];
+  const walk=(items,depth)=>items.forEach(([key,kids])=>{
+    const n=NODE[key];
+    const extra = key==='mlog' ? `<span class="tb">${logN||''}</span>` : '';
+    h.push(row(key,depth,n.t,n.ic,{tw:!!kids,extra}));
+    if(kids==='cmp'){
+      if(openN[key]){ h.push('<ul>');
+        ['laser',...ORDER,'scanner','stage'].forEach((id,i)=>{
+          const num=`<span class="num">${i}</span>`;
+          if(id==='laser'||id==='scanner'||id==='stage'){
+            const icn=id==='laser'?'g-laser':id==='scanner'?'g-scanner':'g-stage';
+            h.push(row('c:'+id,depth+1,id[0].toUpperCase()+id.slice(1),icn,{cls:'fixed',num,extra:'<span class="tsw"><span class="tb">fixed</span></span>'})+'</li>');
+          } else {
+            const a=state.active[id], p=state.pinned[id];
+            const sw=`<span class="tsw"><button class="pinb" data-pin="${id}" title="${p?'Unpin':'Pin'}">${ic(p?'g-pin':'g-pinoff')}</button><input type="checkbox" data-id="${id}" ${a?'checked':''} title="${a?'Turn off':'Turn on'} ${COMP_LABEL[id]}"></span>`;
+            h.push(row('c:'+id,depth+1,COMP_LABEL[id],CMP_ICON[id],{cls:a?'':'off',num,extra:sw})+'</li>');
+          }
+        }); h.push('</ul>'); }
+    } else if(kids && openN[key]){ h.push('<ul>'); walk(kids,depth+1); h.push('</ul>'); }
+    h.push('</li>');
+  });
+  walk(TREE,0);
+  $id('tree').innerHTML=h.join('');
+}
+$id('tree').addEventListener('click', e=>{
+  const cb=e.target.closest('input[type=checkbox][data-id]');
+  if(cb){ const id=cb.dataset.id; state.active[id]=cb.checked; renderComponentList(); updateComponentValueStates(); updateDistanceLabels(); render();
+    msg(`${COMP_LABEL[id]} ${state.active[id]?'on':'off'}`); return; }
+  const pb=e.target.closest('.pinb');
+  if(pb){ const id=pb.dataset.pin; state.pinned[id]=!state.pinned[id]; renderComponentList(); return; }
+  const tw=e.target.closest('[data-tw]');
+  if(tw){ const k=tw.dataset.tw; openN[k]=!openN[k]; renderTree(); return; }
+  const tn=e.target.closest('.tn'); if(tn) selectNode(tn.dataset.node);
+});
+$id('tree').addEventListener('dblclick', e=>{ const tn=e.target.closest('.tn'); if(!tn) return; const k=tn.dataset.node; if(k in openN){ openN[k]=!openN[k]; renderTree(); } });
+function selectNode(key){
+  selNode=key;
+  let n=NODE[key], sub=n&&n.t;
+  if(key.startsWith('c:')){ const id=key.slice(2); n=NODE.path; sub='Beam Path · '+(COMP_LABEL[id]||id[0].toUpperCase()+id.slice(1)); }
+  if(!n) return;
+  $id('psub').textContent=sub;
+  document.querySelectorAll('#setPane details.sec').forEach(d=>{ d.hidden=!n.secs.includes(d.dataset.sec); if(!d.hidden) d.open=true; });
+  if(n.view) setView(n.view);
+  if(n.card){ const c=$id(n.card); c.scrollIntoView({block:'nearest'}); c.classList.remove('hl'); void c.offsetWidth; c.classList.add('hl'); }
+  document.querySelectorAll('#tree .tn').forEach(t=>t.setAttribute('aria-selected', t.dataset.node===key));
+}
+
+/* ---------- graphics views ---------- */
+let view='layout';
+function setView(v){
+  view=v;
+  document.querySelectorAll('.view').forEach(el=>el.hidden=el.dataset.view!==v);
+  document.querySelectorAll('.wtab[data-view]').forEach(b=>b.setAttribute('aria-selected', b.dataset.view===v));
+  document.querySelectorAll('.bbtn[data-view]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.view===v));
+  document.querySelectorAll('#gtool > span').forEach(s=>s.style.display = s.classList.contains('gt-'+v) ? 'contents' : 'none');
+  if(v==='profile') fitProfile();
+}
+function fitProfile(){
+  const w=$id('pwrap'), c=$id('profileCanvas'); if(!w || w.offsetParent===null) return;
+  const W=w.clientWidth-20, H=w.clientHeight-20; if(W<=0||H<=0) return;
+  const R=2; let cw=Math.min(W, H*R); let ch=cw/R;
+  c.style.width=Math.floor(cw)+'px'; c.style.height=Math.floor(ch)+'px';
+  renderProfile();
+}
+new ResizeObserver(()=>{ if(view==='profile') fitProfile(); }).observe($id('pwrap'));
+document.addEventListener('click', e=>{
+  const v=e.target.closest('[data-view]'); if(v && !v.classList.contains('view')){ setView(v.dataset.view); return; }
+});
+
+/* ---------- ribbon ---------- */
+document.querySelectorAll('.rtab').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('.rtab').forEach(x=>x.setAttribute('aria-selected', x===t));
+  document.querySelectorAll('.rpage').forEach(p=>p.hidden=p.dataset.r!==t.dataset.r);
+}));
+const TOG={normalize:'normalize-toggle',guide:'guide-toggle','3d':'profile-3d-toggle'};
+function syncToggles(){ Object.entries(TOG).forEach(([k,id])=>{ const on=$id(id).classList.contains('on'); document.querySelectorAll(`[data-tog="${k}"]`).forEach(b=>b.setAttribute('aria-pressed', on)); }); }
+document.querySelectorAll('.bbtn[data-tog]').forEach(b=>b.addEventListener('click', ()=>{ $id(TOG[b.dataset.tog]).click(); }));
+Object.values(TOG).forEach(id=>$id(id).addEventListener('click', ()=>setTimeout(syncToggles,0)));
+function setPulseUI(){
+  const s=animPlaying?'g-pathpause':'g-pathview';
+  ['play-pause-btn','gPulse'].forEach(id=>{ const b=$id(id); b.setAttribute('aria-pressed', animPlaying); b.querySelector('use').setAttribute('href','#'+s); });
+}
+const ACTS={
+  process(){ render(); msg(`Processed — spot ⌀ ${(w_at_z_m(hp_mm())*2e6).toFixed(1)} μm, fluence ${fluence_mJcm2(hp_mm()).toFixed(1)} mJ/cm² at the stage`); },
+  focus(){ $id('find-focus-btn').click(); },
+  defaults(){ $id('reset-default').click(); },
+  pulse(){ $id('play-pause-btn').click(); },
+  zin(){ $id('zoom-in').click(); }, zout(){ $id('zoom-out').click(); }, zfit(){ $id('zoom-reset').click(); },
+  exBeam(){ $id('dl-beam').click(); },
+  snapshot(){ selectNode('mlog'); $id('log-save-btn').click(); },
+  showLog(){ selectNode('mlog'); },
+  targets(){ selectNode('targets'); },
+  collapseAll(){ Object.keys(openN).forEach(k=>openN[k]=false); renderTree(); },
+  expandAll(){ ['setup','path','results'].forEach(k=>openN[k]=true); renderTree(); },
+  resetLayout(){ work.style.removeProperty('--tw'); work.style.removeProperty('--sw'); right.style.removeProperty('--bh'); panes.set=true; panes.msg=true; applyPanes(); msg('Layout reset'); },
+};
+document.addEventListener('click', e=>{ const b=e.target.closest('[data-act]'); if(b && ACTS[b.dataset.act]) ACTS[b.dataset.act](); });
+document.querySelectorAll('.process-btn-icon').forEach(b=>b.addEventListener('click', ()=>msg(`Processed — spot ⌀ ${(w_at_z_m(hp_mm())*2e6).toFixed(1)} μm, fluence ${fluence_mJcm2(hp_mm()).toFixed(1)} mJ/cm² at the stage`)));
+$id('find-focus-btn').addEventListener('click', ()=>msg('Find Focus — Scanner–Stage set to f = 255 mm (h_p = 0)'));
+$id('reset-default').addEventListener('click', ()=>msg('Path distances reset to defaults'));
+$id('colormap').addEventListener('change', e=>msg('Colormap: '+e.target.selectedOptions[0].text));
+
+/* ---------- panes & splitters (Grain Tracer behaviour) ---------- */
+const work=$id('work'), right=$id('right');
+const panes={set:true,msg:true};
+function applyPanes(){
+  $id('setPane').hidden=!panes.set; $id('split2').hidden=!panes.set;
+  work.style.setProperty('--cols', panes.set? '' : 'var(--tw, 300px) 5px minmax(0, 1fr)');
+  if(panes.set) work.style.removeProperty('--cols');
+  $id('msgPane').hidden=!panes.msg; $id('split3').hidden=!panes.msg;
+  if(panes.msg) right.style.removeProperty('--rows'); else right.style.setProperty('--rows','minmax(0, 1fr)');
+  document.querySelectorAll('[data-pane]').forEach(b=>b.setAttribute('aria-pressed', panes[b.dataset.pane]));
+  if(view==='profile') requestAnimationFrame(fitProfile);
+}
+document.querySelectorAll('[data-pane]').forEach(b=>b.addEventListener('click', ()=>{ panes[b.dataset.pane]=!panes[b.dataset.pane]; applyPanes(); }));
+function drag(el, v, host, axis, lo, hi, sign){
+  let s0=0, v0=0;
+  el.addEventListener('pointerdown', e=>{ s0=axis==='x'?e.clientX:e.clientY; v0=parseFloat(getComputedStyle(host).getPropertyValue(v))||(v==='--tw'?300:v==='--sw'?330:170); el.setPointerCapture(e.pointerId); el.classList.add('drag'); e.preventDefault(); });
+  el.addEventListener('pointermove', e=>{ if(!el.classList.contains('drag')) return; const d=(axis==='x'?e.clientX:e.clientY)-s0; host.style.setProperty(v, Math.max(lo,Math.min(hi, v0+sign*d))+'px'); });
+  el.addEventListener('pointerup', ()=>el.classList.remove('drag'));
+  el.addEventListener('dblclick', ()=>host.style.removeProperty(v));
+}
+drag($id('split1'),'--tw',work,'x',200,560,1);
+drag($id('split2'),'--sw',work,'x',240,620,1);
+drag($id('split3'),'--bh',right,'y',60,600,-1);
+
+/* ---------- tooltips (Grain Tracer style) ---------- */
+(()=>{
+  const tip=document.createElement('div'); tip.className='btip'; tip.hidden=true; document.body.appendChild(tip); let tm=0;
+  const ZONES='.ribbon,.appbar,.gtool,.phbtns,.split';
+  document.addEventListener('pointerover', e=>{
+    const t=e.target.closest && e.target.closest('[title],[data-tip]'); clearTimeout(tm);
+    if(!t || !t.closest(ZONES)){ tip.hidden=true; return; }
+    if(t.hasAttribute('title')){ t.dataset.tip=t.getAttribute('title'); t.removeAttribute('title'); }
+    if(!t.dataset.tip){ tip.hidden=true; return; }
+    tm=setTimeout(()=>{ tip.textContent=t.dataset.tip; tip.hidden=false; const r=t.getBoundingClientRect(), tw=tip.offsetWidth;
+      tip.style.left=Math.max(4, Math.min(innerWidth-tw-4, r.left+r.width/2-tw/2))+'px'; tip.style.top=(r.bottom+6)+'px'; }, 350);
+  });
+  document.addEventListener('pointerdown', ()=>{ clearTimeout(tm); tip.hidden=true; }, true);
+  document.addEventListener('pointerout', e=>{ if(!e.relatedTarget || !(e.relatedTarget.closest && e.relatedTarget.closest('[data-tip]'))){ clearTimeout(tm); tip.hidden=true; } });
+})();
+// keep the Measurement Log count in the tree up to date
+{ const _rll=renderLogList; renderLogList=function(){ _rll(); renderTree(); }; }
+
+buildDistanceControls();
+bindStepButtons();
+renderComponentList();
+updateComponentValueStates();
+render();
+requestAnimationFrame(animate);
+selectNode('setup'); syncToggles(); setPulseUI(); msg('BeamPath ready — f = 255 mm (fixed)');
+
+</script>
+
+</body></html>
